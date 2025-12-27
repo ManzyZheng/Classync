@@ -1,9 +1,25 @@
 <template>
   <div class="classroom-container">
     <div class="classroom-header">
-      <h2>{{ classroom?.name }}</h2>
-      <div class="classroom-code">课堂码: {{ classroom?.classCode }}</div>
-      <button class="exit-btn" @click="exitClassroom">退出课堂</button>
+      <button class="back-btn" @click="exitClassroom" title="返回">
+        <span class="back-icon">←</span>
+      </button>
+      <h2 class="classroom-title">{{ classroom?.name }}</h2>
+      <div class="header-info">
+        <div class="info-item">
+          <span class="info-icon">📅</span>
+          <span>{{ formatTimeRange(classroom?.startTime, classroom?.endTime) }}</span>
+        </div>
+        <div class="info-separator">|</div>
+        <div class="info-item">
+          <span class="info-icon">#</span>
+          <span>{{ classroom?.classCode }}</span>
+        </div>
+      </div>
+      <button class="present-btn" @click="handlePresent" title="放映">
+        <span class="present-icon">▶</span>
+        <span>放映</span>
+      </button>
     </div>
     
     <div class="classroom-content">
@@ -154,6 +170,31 @@ const exitClassroom = () => {
   classroomStore.reset()
   router.push('/home')
 }
+
+const handlePresent = () => {
+  // 放映功能暂未实现
+  console.log('Present button clicked')
+}
+
+const formatTimeRange = (start, end) => {
+  if (!start || !end) return ''
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+  
+  const dateStr = startDate.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+  
+  const endDateStr = endDate.toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    year: endDate.getFullYear() !== startDate.getFullYear() ? 'numeric' : undefined
+  })
+  
+  return `${dateStr} - ${endDateStr}`
+}
 </script>
 
 <style scoped>
@@ -168,34 +209,101 @@ const exitClassroom = () => {
 .classroom-header {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 16px 32px;
+  gap: 16px;
+  padding: 12px 24px;
   background: white;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.classroom-header h2 {
-  font-size: 20px;
-  color: #333;
-  flex: 1;
+.back-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.classroom-code {
-  font-size: 14px;
-  color: #667eea;
-  font-weight: bold;
-}
-
-.exit-btn {
-  padding: 8px 16px;
+.back-btn:hover {
   background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
   color: #333;
 }
 
-.exit-btn:hover {
-  background: #e0e0e0;
+.back-icon {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.classroom-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: #333;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  margin-right: 16px;
+  font-size: 14px;
+  color: #666;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-icon {
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+.info-separator {
+  color: #ddd;
+  font-size: 14px;
+}
+
+.present-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.present-btn:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.present-icon {
+  font-size: 14px;
 }
 
 .classroom-content {
@@ -230,6 +338,46 @@ const exitClassroom = () => {
 .no-pdf p {
   color: #999;
   font-size: 16px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .classroom-header {
+    padding: 10px 16px;
+    gap: 12px;
+  }
+  
+  .classroom-title {
+    font-size: 16px;
+  }
+  
+  .header-info {
+    display: none;
+  }
+  
+  .present-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+  
+  .present-btn span:not(.present-icon) {
+    display: none;
+  }
+  
+  .present-icon {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .header-info {
+    gap: 8px;
+    font-size: 13px;
+  }
+  
+  .info-item {
+    gap: 4px;
+  }
 }
 </style>
 

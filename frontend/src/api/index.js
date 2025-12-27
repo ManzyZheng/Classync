@@ -39,6 +39,10 @@ export default {
     getById: (id) => api.get(`/classrooms/${id}`),
     getByCode: (code) => api.get(`/classrooms/code/${code}`),
     getByHostUser: (userId) => api.get(`/classrooms/host/${userId}`),
+    getByParticipantUser: (userId) => api.get(`/classrooms/participant/${userId}`),
+    recordParticipant: (classroomId, userId) => api.post(`/classrooms/${classroomId}/participant/${userId}`),
+    removeParticipant: (classroomId, userId) => api.delete(`/classrooms/${classroomId}/participant/${userId}`),
+    delete: (id) => api.delete(`/classrooms/${id}`),
     uploadPdf: (id, file) => {
       const formData = new FormData()
       formData.append('file', file)

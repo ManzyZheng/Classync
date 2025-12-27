@@ -51,6 +51,30 @@ public class ClassroomController {
         return ResponseEntity.ok(classrooms);
     }
     
+    @GetMapping("/participant/{userId}")
+    public ResponseEntity<List<Classroom>> getClassroomsByParticipantUserId(@PathVariable Long userId) {
+        List<Classroom> classrooms = classroomService.getClassroomsByParticipantUserId(userId);
+        return ResponseEntity.ok(classrooms);
+    }
+    
+    @PostMapping("/{classroomId}/participant/{userId}")
+    public ResponseEntity<Void> recordParticipant(@PathVariable Long classroomId, @PathVariable Long userId) {
+        classroomService.recordParticipant(classroomId, userId);
+        return ResponseEntity.ok().build();
+    }
+    
+    @DeleteMapping("/{classroomId}/participant/{userId}")
+    public ResponseEntity<Void> removeParticipant(@PathVariable Long classroomId, @PathVariable Long userId) {
+        classroomService.removeParticipant(classroomId, userId);
+        return ResponseEntity.ok().build();
+    }
+    
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteClassroom(@PathVariable Long id) {
+        classroomService.deleteClassroom(id);
+        return ResponseEntity.ok().build();
+    }
+    
     @PostMapping("/{id}/upload")
     public ResponseEntity<Classroom> uploadPdf(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
         try {

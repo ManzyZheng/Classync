@@ -48,6 +48,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClassroomStore } from '../stores/classroom'
+import { useUserStore } from '../stores/user'
 import api from '../api'
 import websocket from '../utils/websocket'
 import PdfThumbnails from '../components/PdfThumbnails.vue'
@@ -57,6 +58,7 @@ import InteractionPanel from '../components/InteractionPanel.vue'
 const route = useRoute()
 const router = useRouter()
 const classroomStore = useClassroomStore()
+const userStore = useUserStore()
 
 const classroomId = ref(parseInt(route.params.id))
 const classroom = ref(null)
@@ -86,6 +88,15 @@ const loadClassroom = async () => {
     
     if (data.pdfPath) {
       pdfUrl.value = `/uploads/${data.pdfPath}`
+    }
+    
+    // 记录用户参与（观众身份）
+    if (userStore.currentUser) {
+      try {
+        await api.classroom.recordParticipant(classroomId.value, userStore.currentUser.id)
+      } catch (error) {
+        console.error('Failed to record participant:', error)
+      }
     }
   } catch (error) {
     console.error('Failed to load classroom:', error)
