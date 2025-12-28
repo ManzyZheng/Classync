@@ -32,7 +32,7 @@ export default {
     login: (data) => api.post('/auth/login', data),
     getUser: (id) => api.get(`/users/${id}`)
   },
-  
+
   // 课堂相关
   classroom: {
     create: (data) => api.post('/classrooms', data),
@@ -51,7 +51,7 @@ export default {
       })
     }
   },
-  
+
   // 问题相关
   question: {
     getByClassroom: (classroomId) => api.get(`/questions/classroom/${classroomId}`),
@@ -62,7 +62,7 @@ export default {
     toggle: (id) => api.post(`/questions/${id}/toggle`),
     finish: (id) => api.post(`/questions/${id}/finish`)
   },
-  
+
   // 答案相关
   answer: {
     submit: (data) => api.post('/answers', data),
@@ -70,7 +70,7 @@ export default {
     getStatistics: (questionId) => api.get(`/answers/statistics/${questionId}`),
     getEssayAnswers: (questionId) => api.get(`/answers/essay/${questionId}`)
   },
-  
+
   // 讨论相关
   discussion: {
     getByClassroom: (classroomId) => api.get(`/discussions/classroom/${classroomId}`),

@@ -13,6 +13,10 @@ export default defineConfig({
     // Fix for sockjs-client
     global: 'globalThis',
   },
+  optimizeDeps: {
+    exclude: ['jieba-wasm'],
+    include: []
+  },
   server: {
     port: 5173,
     proxy: {

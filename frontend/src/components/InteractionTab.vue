@@ -233,6 +233,51 @@ import { useUserStore } from '../stores/user'
 import api from '../api'
 import websocket from '../utils/websocket'
 import QuestionEditor from './QuestionEditor.vue'
+import { filterStopwords, isStopword } from '../utils/stopwords'
+
+// 动态导入 jieba-wasm 以避免 Vite 预构建问题
+let jiebaModule = null
+let jiebaInitialized = false
+let jiebaInitPromise = null
+
+const initJiebaOnce = async () => {
+  if (jiebaInitialized && jiebaModule) {
+    return
+  }
+  
+  // 如果正在初始化，等待初始化完成
+  if (jiebaInitPromise) {
+    return jiebaInitPromise
+  }
+  
+  jiebaInitPromise = (async () => {
+    try {
+      console.log('[WordCloud] Initializing jieba-wasm...')
+      // 动态导入 jieba-wasm
+      jiebaModule = await import('jieba-wasm')
+      console.log('[WordCloud] Jieba module loaded, initializing...')
+      await jiebaModule.default()
+      jiebaInitialized = true
+      console.log('[WordCloud] Jieba initialized successfully')
+    } catch (error) {
+      console.error('[WordCloud] Failed to initialize jieba:', error)
+      jiebaInitPromise = null
+      throw error
+    }
+  })()
+  
+  return jiebaInitPromise
+}
+
+const cutText = (text, useHMM = true) => {
+  if (!jiebaModule || !jiebaInitialized) {
+    throw new Error('Jieba not initialized')
+  }
+  if (!jiebaModule.cut) {
+    throw new Error('Jieba cut function not available')
+  }
+  return jiebaModule.cut(text, useHMM)
+}
 
 const props = defineProps({
   classroomId: Number,
@@ -264,6 +309,9 @@ const wordcloudCanvas = ref(null)
 const essayWordcloudCanvas = ref(null)
 
 onMounted(() => {
+  // 确保用户信息已加载
+  userStore.loadUser()
+  
   loadQuestions()
   // 添加全局点击事件监听
   document.addEventListener('click', handleClickOutside)
@@ -481,38 +529,126 @@ const loadEssayAnswers = async (questionId) => {
   try {
     const data = await api.answer.getEssayAnswers(questionId)
     essayAnswers.value = data
-    generateWordCloud(data)
+    await generateWordCloud(data)
   } catch (error) {
     console.error('Failed to load essay answers:', error)
   }
 }
 
-// ✅ 生成词云数据（简单的词频统计）
-const generateWordCloud = (answers) => {
+// ✅ 生成词云数据（使用 jieba 分词和停用词过滤）
+const generateWordCloud = async (answers) => {
   if (!answers || answers.length === 0) {
     wordFrequency.value = []
     return
   }
   
-  // 合并所有答案文本
-  const allText = answers.map(a => a.content).join(' ')
-  
-  // 简单的中文分词（按字符分割，过滤标点符号）
-  const words = allText.split('').filter(char => {
-    return char.match(/[\u4e00-\u9fa5a-zA-Z0-9]/)
-  })
-  
-  // 统计词频（这里简化为单字统计，实际应该用分词库）
-  const frequency = {}
-  words.forEach(word => {
-    frequency[word] = (frequency[word] || 0) + 1
-  })
-  
-  // 转换为数组并排序
-  wordFrequency.value = Object.entries(frequency)
-    .map(([word, count]) => ({ word, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 30)  // 只取前30个高频词
+  try {
+    console.log('[WordCloud] Starting word cloud generation with', answers.length, 'answers')
+    
+    // 确保 jieba 已初始化
+    await initJiebaOnce()
+    
+    // 合并所有答案文本
+    const allText = answers.map(a => a.content).join(' ')
+    console.log('[WordCloud] Combined text length:', allText.length)
+    
+    // 使用 jieba 进行中文分词
+    const words = []
+    
+    // 分离中文和英文部分
+    const parts = allText.split(/([a-zA-Z]+|\d+)/g)
+    
+    for (const part of parts) {
+      if (!part || part.trim().length === 0) {
+        continue
+      }
+      
+        // 如果是中文，使用 jieba 分词
+        if (/[\u4e00-\u9fa5]/.test(part)) {
+          // 提取中文部分
+          const chineseText = part.replace(/[^\u4e00-\u9fa5]/g, '')
+          if (chineseText.length > 0) {
+            try {
+              // 使用 jieba 精确模式分词（第二个参数 true 表示 HMM）
+              const segments = cutText(chineseText, true)
+              words.push(...segments.filter(s => s && s.trim().length > 0))
+            } catch (error) {
+              console.warn('Jieba segmentation failed, using fallback:', error)
+              // 如果 jieba 失败，使用简单的字符分割作为后备方案
+              words.push(...chineseText.split('').filter(s => s && s.trim().length > 0))
+            }
+          }
+        }
+      
+      // 提取英文单词（2个字符以上）
+      const englishMatches = part.match(/[a-zA-Z]{2,}/g) || []
+      englishMatches.forEach(match => {
+        words.push(match.toLowerCase())
+      })
+    }
+    
+    // 过滤停用词和其他无意义词
+    const filteredWords = words.filter(word => {
+      if (!word || word.trim().length === 0) {
+        return false
+      }
+      
+      const trimmedWord = word.trim()
+      
+      // 英文单词至少2个字符
+      if (/^[a-zA-Z]+$/.test(trimmedWord) && trimmedWord.length < 2) {
+        return false
+      }
+      
+      // 过滤停用词
+      if (isStopword(trimmedWord)) {
+        return false
+      }
+      
+      // 过滤纯数字
+      if (/^\d+$/.test(trimmedWord)) {
+        return false
+      }
+      
+      // 过滤单个标点符号
+      if (/^[^\u4e00-\u9fa5a-zA-Z0-9]+$/.test(trimmedWord)) {
+        return false
+      }
+      
+      // 过滤单字符（除非是常见的中文单字词）
+      if (trimmedWord.length === 1 && /[\u4e00-\u9fa5]/.test(trimmedWord)) {
+        // 允许一些有意义的单字，但过滤停用词
+        if (isStopword(trimmedWord)) {
+          return false
+        }
+      }
+      
+      return true
+    })
+    
+    // 统计词频
+    const frequency = {}
+    filteredWords.forEach(word => {
+      const trimmedWord = word.trim()
+      if (trimmedWord) {
+        frequency[trimmedWord] = (frequency[trimmedWord] || 0) + 1
+      }
+    })
+    
+    // 转换为数组并排序，过滤掉出现次数太少的词（至少出现2次）
+    wordFrequency.value = Object.entries(frequency)
+      .filter(([word, count]) => count >= 2) // 至少出现2次
+      .map(([word, count]) => ({ word, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 30)  // 只取前30个高频词
+    
+    console.log('[WordCloud] Generated', wordFrequency.value.length, 'words')
+    console.log('[WordCloud] Top words:', wordFrequency.value.slice(0, 10))
+  } catch (error) {
+    console.error('[WordCloud] Failed to generate word cloud:', error)
+    console.error('[WordCloud] Error details:', error.stack)
+    wordFrequency.value = []
+  }
 }
 
 // ✅ 根据词频计算字体大小
@@ -662,6 +798,12 @@ const submitAnswer = async () => {
     return
   }
   
+  if (!userStore.currentUser || !userStore.currentUser.id) {
+    console.error('[InteractionTab] Cannot submit: currentUser is null or missing id')
+    alert('用户信息未加载，请刷新页面重新登录')
+    return
+  }
+  
   try {
     console.log('[InteractionTab] Submitting answer:', {
       questionId: currentQuestion.value.id,
@@ -691,6 +833,12 @@ const submitEssayAnswer = async () => {
     console.error('[InteractionTab] Cannot submit: currentQuestion is null')
     console.log('[InteractionTab] openQuestions:', openQuestions.value)
     alert('问题加载失败，请刷新页面')
+    return
+  }
+  
+  if (!userStore.currentUser || !userStore.currentUser.id) {
+    console.error('[InteractionTab] Cannot submit: currentUser is null or missing id')
+    alert('用户信息未加载，请刷新页面重新登录')
     return
   }
   
