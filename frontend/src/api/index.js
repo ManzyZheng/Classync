@@ -106,6 +106,15 @@ export default {
 
       return `${baseUrl}?${params.toString()}`
     }
+  },
+
+  // 页面锁定相关
+  pageLock: {
+    getByClassroom: (classroomId) => api.get(`/page-locks/classroom/${classroomId}`),
+    toggle: (classroomId, pageNumber) => api.post('/page-locks/toggle', { classroomId, pageNumber }),
+    lockFrom: (classroomId, fromPage, totalPages) => api.post('/page-locks/lock-from', { classroomId, fromPage, totalPages }),
+    unlockFrom: (classroomId, fromPage) => api.post('/page-locks/unlock-from', { classroomId, fromPage }),
+    unlockAll: (classroomId) => api.post('/page-locks/unlock-all', { classroomId })
   }
 }
 

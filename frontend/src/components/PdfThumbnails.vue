@@ -7,17 +7,37 @@
         :key="page"
         :class="['thumbnail-item', { 
           active: page === currentPage,
-          host: !isHost && page === hostPage 
+          host: !isHost && page === hostPage,
+          locked: pageLocks[page]
         }]"
-        @click="$emit('page-select', page)"
+        @click="handlePageClick(page)"
       >
         <div class="thumbnail-wrapper">
           <div class="page-number-badge">{{ page }}</div>
+          
+          <!-- Host 端锁定按钮 -->
+          <button 
+            v-if="isHost"
+            class="lock-toggle-btn"
+            @click.stop="$emit('lock-toggle', page)"
+            :title="pageLocks[page] ? '解锁' : '锁定'"
+          >
+            {{ pageLocks[page] ? '🔒' : '🔓' }}
+          </button>
+          
           <canvas 
             :ref="el => setCanvasRef(el, page)"
             :id="`thumbnail-${page}`"
             class="thumbnail-canvas"
+            :class="{ 'blur-locked': !isHost && pageLocks[page] }"
           ></canvas>
+          
+          <!-- Viewer 端锁定提示 -->
+          <div v-if="!isHost && pageLocks[page]" class="locked-overlay">
+            <span class="lock-icon">🔒</span>
+            <span class="lock-text">已锁定</span>
+          </div>
+          
           <span v-if="!isHost && page === hostPage" class="host-indicator">★</span>
         </div>
       </div>
@@ -47,10 +67,26 @@ const props = defineProps({
   totalPages: Number,
   currentPage: Number,
   hostPage: Number,
-  isHost: Boolean
+  isHost: Boolean,
+  pageLocks: {
+    type: Object,
+    default: () => ({})
+  }
 })
 
-defineEmits(['page-select', 'jump-to-host'])
+const emit = defineEmits(['page-select', 'jump-to-host', 'lock-toggle'])
+
+// 处理页面点击
+const handlePageClick = (page) => {
+  // Viewer 端：检查页面是否被锁定
+  if (!props.isHost && props.pageLocks[page]) {
+    console.log(`Page ${page} is locked, cannot navigate`)
+    return
+  }
+  
+  // 发送页面选择事件
+  emit('page-select', page)
+}
 
 // ❗使用 let 存储 PDF 对象
 let pdfDoc = null
@@ -254,6 +290,16 @@ async function renderThumbnail(pageNum) {
   background: #fff8f0;
 }
 
+.thumbnail-item.locked {
+  cursor: not-allowed;
+}
+
+.thumbnail-item.locked:hover .thumbnail-wrapper {
+  border-color: #ddd;
+  background: white;
+  box-shadow: none;
+}
+
 .page-number-badge {
   position: absolute;
   top: 8px;
@@ -273,6 +319,63 @@ async function renderThumbnail(pageNum) {
   border-radius: 2px;
   max-width: 100%;
   height: auto;
+  transition: filter 0.3s;
+}
+
+.thumbnail-canvas.blur-locked {
+  filter: blur(8px);
+}
+
+.lock-toggle-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.lock-toggle-btn:hover {
+  background: white;
+  border-color: #667eea;
+  transform: scale(1.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.locked-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.lock-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.lock-text {
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .host-indicator {

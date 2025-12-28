@@ -3,6 +3,7 @@ import Login from '../views/Login.vue'
 import Home from '../views/Home.vue'
 import ClassroomHost from '../views/ClassroomHost.vue'
 import ClassroomViewer from '../views/ClassroomViewer.vue'
+import ClassroomDisplay from '../views/ClassroomDisplay.vue'
 
 const routes = [
   {
@@ -28,6 +29,11 @@ const routes = [
     path: '/classroom/viewer/:id',
     name: 'ClassroomViewer',
     component: ClassroomViewer
+  },
+  {
+    path: '/classroom/display/:id',
+    name: 'ClassroomDisplay',
+    component: ClassroomDisplay
   }
 ]
 

@@ -9,7 +9,11 @@ export const WS_EVENTS = {
   QUESTION_CLOSED: 'QUESTION_CLOSED',
   QUESTION_FINISHED: 'QUESTION_FINISHED',
   ANSWER_SUBMITTED: 'ANSWER_SUBMITTED',
-  DISCUSSION_NEW: 'DISCUSSION_NEW'
+  DISCUSSION_NEW: 'DISCUSSION_NEW',
+  DISPLAY_CODE_TOGGLE: 'DISPLAY_CODE_TOGGLE',
+  PAGE_LOCK_UPDATE: 'PAGE_LOCK_UPDATE',
+  PAGE_LOCK_BATCH: 'PAGE_LOCK_BATCH',
+  PAGE_LOCK_BATCH_UNLOCK: 'PAGE_LOCK_BATCH_UNLOCK'
 }
 
 class WebSocketService {
@@ -94,6 +98,18 @@ class WebSocketService {
         break
       case WS_EVENTS.DISCUSSION_NEW:
         callbacks.onDiscussionNew?.(payload)
+        break
+      case WS_EVENTS.DISPLAY_CODE_TOGGLE:
+        callbacks.onDisplayCodeToggle?.(payload)
+        break
+      case WS_EVENTS.PAGE_LOCK_UPDATE:
+        callbacks.onPageLockUpdate?.(payload)
+        break
+      case WS_EVENTS.PAGE_LOCK_BATCH:
+        callbacks.onPageLockBatch?.(payload)
+        break
+      case WS_EVENTS.PAGE_LOCK_BATCH_UNLOCK:
+        callbacks.onPageLockBatchUnlock?.(payload)
         break
       default:
         console.warn(`Unknown event type: ${event}`)
@@ -183,6 +199,38 @@ class WebSocketService {
     this.send('/app/discussion_new', {
       classroomId,
       data: discussion
+    })
+  }
+
+  // 发送展示课堂码切换消息
+  sendDisplayCodeToggle(classroomId, show) {
+    this.send('/app/display_code_toggle', {
+      classroomId,
+      data: { show }
+    })
+  }
+
+  // 发送页面锁定切换消息
+  sendPageLockToggle(classroomId, pageNumber, isLocked) {
+    this.send('/app/page_lock_toggle', {
+      classroomId,
+      data: { pageNumber, isLocked }
+    })
+  }
+
+  // 发送批量锁定消息
+  sendPageLockBatch(classroomId, fromPage) {
+    this.send('/app/page_lock_batch', {
+      classroomId,
+      data: { fromPage }
+    })
+  }
+
+  // 发送批量解锁消息
+  sendPageLockBatchUnlock(classroomId, fromPage = 1) {
+    this.send('/app/page_lock_batch_unlock', {
+      classroomId,
+      data: { fromPage }
     })
   }
 }

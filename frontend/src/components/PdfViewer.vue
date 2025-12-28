@@ -1,9 +1,21 @@
 <template>
   <div class="pdf-viewer">
     <div class="pdf-toolbar">
-      <button @click="prevPage" :disabled="currentPageNum <= 1">上一页</button>
+      <button 
+        @click="prevPage" 
+        :disabled="isPrevDisabled"
+        :class="{ 'locked-btn': !props.isHost && props.pageLocks[currentPageNum.value - 1] }"
+      >
+        上一页
+      </button>
       <span>{{ currentPageNum }} / {{ totalPagesNum }}</span>
-      <button @click="nextPage" :disabled="currentPageNum >= totalPagesNum">下一页</button>
+      <button 
+        @click="nextPage" 
+        :disabled="isNextDisabled"
+        :class="{ 'locked-btn': !props.isHost && props.pageLocks[currentPageNum.value + 1] }"
+      >
+        下一页
+      </button>
     </div>
     
     <div class="pdf-canvas-container">
@@ -15,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf'
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker?url'
 
@@ -26,10 +38,15 @@ const props = defineProps({
   pdfUrl: String,
   currentPage: Number,
   hostPage: Number,
-  isHost: Boolean
+  isHost: Boolean,
+  displayMode: Boolean,  // 大屏展示模式
+  pageLocks: {  // 页面锁定状态
+    type: Object,
+    default: () => ({})
+  }
 })
 
-const emit = defineEmits(['page-change', 'pages-loaded'])
+const emit = defineEmits(['page-change', 'pages-loaded', 'update:currentPage'])
 
 // ❗核心：PDF.js 对象用 let，不用 ref
 let pdfDoc = null
@@ -43,6 +60,25 @@ const currentPageNum = ref(1)
 const totalPagesNum = ref(0)
 const loading = ref(false)
 const error = ref('')
+
+// 计算上一页/下一页按钮是否禁用
+const isPrevDisabled = computed(() => {
+  if (currentPageNum.value <= 1) return true
+  // 如果是学生端，检查上一页是否被锁定
+  if (!props.isHost && props.pageLocks[currentPageNum.value - 1]) {
+    return true
+  }
+  return false
+})
+
+const isNextDisabled = computed(() => {
+  if (currentPageNum.value >= totalPagesNum.value) return true
+  // 如果是学生端，检查下一页是否被锁定
+  if (!props.isHost && props.pageLocks[currentPageNum.value + 1]) {
+    return true
+  }
+  return false
+})
 
 onMounted(() => {
   canvas = pdfCanvas.value
@@ -128,10 +164,20 @@ async function renderPage(pageNum) {
     // 获取原始页面尺寸
     const originalViewport = page.getViewport({ scale: 1 })
     
-    // 计算自适应缩放比例（适应容器，留出边距）
-    const scaleX = (containerWidth - 32) / originalViewport.width  // 留16px边距
-    const scaleY = (containerHeight - 32) / originalViewport.height
-    const scale = Math.min(scaleX, scaleY, 2.5) // 最大不超过2.5倍
+    // 计算自适应缩放比例
+    let scaleX, scaleY, scale
+    
+    if (props.displayMode) {
+      // 大屏展示模式：无边距，无最大缩放限制
+      scaleX = containerWidth / originalViewport.width
+      scaleY = containerHeight / originalViewport.height
+      scale = Math.min(scaleX, scaleY)
+    } else {
+      // 普通模式：留出边距，限制最大缩放
+      scaleX = (containerWidth - 32) / originalViewport.width  // 留16px边距
+      scaleY = (containerHeight - 32) / originalViewport.height
+      scale = Math.min(scaleX, scaleY, 2.5) // 最大不超过2.5倍
+    }
     
     const dpr = window.devicePixelRatio || 1
     const viewport = page.getViewport({ scale })
@@ -177,20 +223,38 @@ async function renderPage(pageNum) {
 
 function prevPage() {
   if (currentPageNum.value > 1 && !isRendering) {
-    currentPageNum.value--
+    const targetPage = currentPageNum.value - 1
+    // 学生端检查页面是否被锁定
+    if (!props.isHost && props.pageLocks[targetPage]) {
+      console.log(`Page ${targetPage} is locked, cannot navigate`)
+      return
+    }
+    currentPageNum.value = targetPage
     renderPage(currentPageNum.value)
     if (props.isHost) {
       emit('page-change', currentPageNum.value)
+    } else {
+      // 学生端也需要触发更新，以便缩略图显示蓝框
+      emit('update:currentPage', currentPageNum.value)
     }
   }
 }
 
 function nextPage() {
   if (currentPageNum.value < totalPagesNum.value && !isRendering) {
-    currentPageNum.value++
+    const targetPage = currentPageNum.value + 1
+    // 学生端检查页面是否被锁定
+    if (!props.isHost && props.pageLocks[targetPage]) {
+      console.log(`Page ${targetPage} is locked, cannot navigate`)
+      return
+    }
+    currentPageNum.value = targetPage
     renderPage(currentPageNum.value)
     if (props.isHost) {
       emit('page-change', currentPageNum.value)
+    } else {
+      // 学生端也需要触发更新，以便缩略图显示蓝框
+      emit('update:currentPage', currentPageNum.value)
     }
   }
 }
@@ -231,6 +295,18 @@ function jumpToHostPage() {
 .pdf-toolbar button:disabled {
   background: #ccc;
   cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* 锁定页面的按钮样式 */
+.pdf-toolbar button.locked-btn {
+  background: #999;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pdf-toolbar button.locked-btn::after {
+  content: ' 🔒';
 }
 
 .pdf-toolbar span {

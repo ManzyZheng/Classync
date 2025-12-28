@@ -14,6 +14,7 @@
           :current-page="currentPage"
           :host-page="hostPage"
           :is-host="false"
+          :page-locks="pageLocks"
           @page-select="handlePageSelect"
           @jump-to-host="jumpToHostPage"
         />
@@ -26,8 +27,10 @@
           :current-page="currentPage"
           :host-page="hostPage"
           :is-host="false"
+          :page-locks="pageLocks"
           @page-change="handlePageChange"
           @pages-loaded="totalPages = $event"
+          @update:currentPage="currentPage = $event"
         />
         <div v-else class="no-pdf">
           <p>未上传 PDF 文件</p>
@@ -66,6 +69,7 @@ const pdfUrl = ref('')
 const currentPage = ref(1)
 const hostPage = ref(1)
 const totalPages = ref(0)
+const pageLocks = ref({})  // 页面锁定状态
 
 onMounted(async () => {
   await loadClassroom()
@@ -88,6 +92,15 @@ const loadClassroom = async () => {
     
     if (data.pdfPath) {
       pdfUrl.value = `/uploads/${data.pdfPath}`
+    }
+    
+    // 加载页面锁定状态（如果失败则使用空对象）
+    try {
+      const locks = await api.pageLock.getByClassroom(classroomId.value)
+      pageLocks.value = locks || {}
+    } catch (lockError) {
+      console.warn('Failed to load page locks, using empty state:', lockError)
+      pageLocks.value = {}
     }
     
     // 记录用户参与（观众身份）
@@ -113,6 +126,10 @@ const connectWebSocket = async () => {
         if (payload.currentPage) {
           hostPage.value = payload.currentPage
         }
+        // 加载页面锁定状态
+        if (payload.pageLocks) {
+          pageLocks.value = payload.pageLocks
+        }
       },
       onPageUpdate: (payload) => {
         console.log('Page updated:', payload)
@@ -120,6 +137,30 @@ const connectWebSocket = async () => {
         hostPage.value = pageNumber
         // 自动跟随主持人翻页
         currentPage.value = pageNumber
+      },
+      // ✅ 页面锁定更新
+      onPageLockUpdate: (payload) => {
+        console.log('[Viewer] Page lock updated:', payload)
+        const { pageNumber, isLocked } = payload
+        pageLocks.value[pageNumber] = isLocked
+      },
+      // ✅ 批量锁定
+      onPageLockBatch: (payload) => {
+        console.log('[Viewer] Batch lock:', payload)
+        const { fromPage } = payload
+        for (let page = fromPage; page <= totalPages.value; page++) {
+          pageLocks.value[page] = true
+        }
+      },
+      // ✅ 批量解锁（瞬间完成）
+      onPageLockBatchUnlock: (payload) => {
+        console.log('[Viewer]  Batch unlock:', payload)
+        const { fromPage } = payload
+        // 从 fromPage 开始解锁所有页面
+        for (let page = fromPage; page <= totalPages.value; page++) {
+          pageLocks.value[page] = false
+        }
+        console.log('[Viewer]  All pages unlocked instantly!')
       },
       // ✅ 问题开放：触发WebSocket内部事件系统
       onQuestionOpened: (payload) => {
@@ -165,11 +206,19 @@ const connectWebSocket = async () => {
 }
 
 const handlePageSelect = (page) => {
+  // 检查页面是否被锁定
+  if (pageLocks.value[page]) {
+    console.log(`Cannot navigate to locked page ${page}`)
+    return
+  }
   currentPage.value = page
 }
 
 const jumpToHostPage = () => {
-  currentPage.value = hostPage.value
+  // 跳转到主持人页面时也要检查锁定状态
+  if (!pageLocks.value[hostPage.value]) {
+    currentPage.value = hostPage.value
+  }
 }
 
 const exitClassroom = () => {
