@@ -72,22 +72,43 @@
         <div v-if="selectedQuestion.type === 'ESSAY'" class="essay-statistics">
           <!-- 词云区域（放在上面） -->
           <div class="wordcloud-section">
-            <h4>词云统计</h4>
+            <div class="wordcloud-header">
+              <h4>词云统计</h4>
+              <div class="wordcloud-toggle">
+                <label class="toggle-label-small">
+                  <input 
+                    type="checkbox" 
+                    v-model="useExternalWordCloud"
+                  />
+                  <span>使用外部API词云</span>
+                </label>
+              </div>
+            </div>
             <div class="wordcloud-container">
-              <div v-if="wordFrequency.length > 0" class="word-tags">
-                <span 
-                  v-for="(word, index) in wordFrequency" 
-                  :key="index"
-                  class="word-tag"
-                  :class="getWordClass(word.count)"
-                  :style="{ ...getWordStyle(word, index), color: getWordColor(word.count, index) }"
-                >
-                  {{ word.word }}
-                </span>
-              </div>
-              <div v-else class="no-wordcloud">
-                暂无数据
-              </div>
+              <!-- 外部API词云 -->
+              <WordCloudIframe
+                v-if="useExternalWordCloud"
+                :keywords="wordCloudKeywords"
+                bg-color="white"
+                class="external-wordcloud"
+              />
+              <!-- 原有词云 -->
+              <template v-else>
+                <div v-if="wordFrequency.length > 0" class="word-tags">
+                  <span 
+                    v-for="(word, index) in wordFrequency" 
+                    :key="index"
+                    class="word-tag"
+                    :class="getWordClass(word.count)"
+                    :style="{ ...getWordStyle(word, index), color: getWordColor(word.count, index) }"
+                  >
+                    {{ word.word }}
+                  </span>
+                </div>
+                <div v-else class="no-wordcloud">
+                  暂无数据
+                </div>
+              </template>
             </div>
           </div>
           
@@ -241,11 +262,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
 import { useUserStore } from '../stores/user'
 import api from '../api'
 import websocket from '../utils/websocket'
 import QuestionEditor from './QuestionEditor.vue'
+import WordCloudIframe from './WordCloudIframe.vue'
 import { filterStopwords, isStopword } from '../utils/stopwords'
 
 // 动态导入 jieba-wasm 以避免 Vite 预构建问题
@@ -321,6 +343,7 @@ const viewerStatistics = ref([])
 const essayAnswer = ref('')
 const wordcloudCanvas = ref(null)
 const essayWordcloudCanvas = ref(null)
+const useExternalWordCloud = ref(true) // 默认使用外部API词云
 
 onMounted(() => {
   // 确保用户信息已加载
@@ -542,10 +565,12 @@ const loadStatistics = async (questionId) => {
 const loadEssayAnswers = async (questionId) => {
   try {
     const data = await api.answer.getEssayAnswers(questionId)
+    console.log('[WordCloud] Loaded essay answers:', data.length, 'answers')
     essayAnswers.value = data
     await generateWordCloud(data)
   } catch (error) {
     console.error('Failed to load essay answers:', error)
+    wordFrequency.value = []
   }
 }
 
@@ -1298,6 +1323,20 @@ const resetAnswerState = () => {
   myAnswer.value = null
   essayAnswer.value = ''
 }
+
+// 将wordFrequency转换为外部API需要的keywords格式
+const wordCloudKeywords = computed(() => {
+  if (!wordFrequency.value || wordFrequency.value.length === 0) {
+    console.log('[WordCloud] wordFrequency is empty, returning empty keywords')
+    return {}
+  }
+  const keywords = {}
+  wordFrequency.value.forEach(item => {
+    keywords[item.word] = item.count.toString()
+  })
+  console.log('[WordCloud] Generated keywords:', Object.keys(keywords).length, 'words')
+  return keywords
+})
 </script>
 
 <style scoped>
@@ -1559,13 +1598,45 @@ const resetAnswerState = () => {
   align-items: center;
 }
 
+.wordcloud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
 .wordcloud-section h4 {
-  margin: 0 0 16px 0;
+  margin: 0;
   font-size: 18px;
   font-weight: 600;
   color: #333;
-  align-self: flex-start; /* 标题左对齐 */
+}
+
+.wordcloud-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.toggle-label-small {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+}
+
+.toggle-label-small input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.external-wordcloud {
   width: 100%;
+  height: 100%;
+  min-height: 400px;
 }
 
 .wordcloud-container {

@@ -75,6 +75,37 @@ export default {
   discussion: {
     getByClassroom: (classroomId) => api.get(`/discussions/classroom/${classroomId}`),
     create: (data) => api.post('/discussions', data)
+  },
+
+  // 词云相关
+  wordcloud: {
+    /**
+     * 生成词云URL
+     * @param {Object} keywords - 词云权重对象，如 {"词1": 12, "词2": 1}
+     * @param {String} bgColor - 背景色，支持英文颜色名或rgb/rgba，如 "black", "red", "rgb(255,0,0)"
+     * @param {String} maskImage - 遮罩图片URL（可选）
+     * @returns {String} 词云页面URL
+     */
+    generateUrl: (keywords, bgColor = 'black', maskImage = null) => {
+      const baseUrl = 'http://niningqi.com/api/wordcloud'
+      const params = new URLSearchParams()
+
+      // 将keywords对象转换为JSON字符串并编码
+      const keywordsJson = JSON.stringify(keywords)
+      params.append('keywords', keywordsJson)
+
+      // 添加背景色
+      if (bgColor) {
+        params.append('bgColor', bgColor)
+      }
+
+      // 添加遮罩图片（如果提供）
+      if (maskImage) {
+        params.append('maskImage', maskImage)
+      }
+
+      return `${baseUrl}?${params.toString()}`
+    }
   }
 }
 
