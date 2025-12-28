@@ -73,7 +73,7 @@
           <!-- 词云区域（放在上面） -->
           <div class="wordcloud-section">
             <div class="wordcloud-header">
-              <h4>词云统计</h4>
+            <h4>词云统计</h4>
               <div class="wordcloud-toggle">
                 <label class="toggle-label-small">
                   <input 
@@ -94,20 +94,20 @@
               />
               <!-- 原有词云 -->
               <template v-else>
-                <div v-if="wordFrequency.length > 0" class="word-tags">
-                  <span 
-                    v-for="(word, index) in wordFrequency" 
-                    :key="index"
-                    class="word-tag"
-                    :class="getWordClass(word.count)"
-                    :style="{ ...getWordStyle(word, index), color: getWordColor(word.count, index) }"
-                  >
-                    {{ word.word }}
-                  </span>
-                </div>
-                <div v-else class="no-wordcloud">
-                  暂无数据
-                </div>
+              <div v-if="wordFrequency.length > 0" class="word-tags">
+                <span 
+                  v-for="(word, index) in wordFrequency" 
+                  :key="index"
+                  class="word-tag"
+                  :class="getWordClass(word.count)"
+                  :style="{ ...getWordStyle(word, index), color: getWordColor(word.count, index) }"
+                >
+                  {{ word.word }}
+                </span>
+              </div>
+              <div v-else class="no-wordcloud">
+                暂无数据
+              </div>
               </template>
             </div>
           </div>
