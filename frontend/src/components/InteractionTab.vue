@@ -19,12 +19,17 @@
               <div class="question-type">{{ question.type === 'CHOICE' ? '选择题' : '问答题' }}</div>
             </div>
             <div class="question-actions">
-              <button 
-                :class="['toggle-btn', { open: question.isOpen }]"
-                @click="toggleQuestion(question.id)"
-              >
-                {{ question.isOpen ? '开放' : '关闭' }}
-              </button>
+              <div class="toggle-wrapper">
+                <span class="toggle-label">{{ question.isOpen ? '开放' : '关闭' }}</span>
+                <label class="toggle-switch">
+                  <input 
+                    type="checkbox" 
+                    :checked="question.isOpen"
+                    @change="toggleQuestion(question.id)"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
               <div class="more-menu">
                 <button class="more-btn" @click.stop="toggleMenu(question.id, $event)">⋯</button>
                 <div v-if="activeMenu === question.id" class="menu-dropdown" @click.stop>
@@ -45,10 +50,17 @@
           <h3>{{ selectedQuestion.type === 'CHOICE' ? '选择题控制' : '问答题控制' }}</h3>
           <div class="status-control">
             <span>{{ selectedQuestion.isFinished ? '已结束' : '统计进行中' }}</span>
-            <div 
-              :class="['status-indicator', { open: selectedQuestion.isOpen }]"
-              @click="toggleQuestion(selectedQuestion.id)"
-            ></div>
+            <div class="toggle-wrapper">
+              <span class="toggle-label">{{ selectedQuestion.isOpen ? '开放' : '关闭' }}</span>
+              <label class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  :checked="selectedQuestion.isOpen"
+                  @change="toggleQuestion(selectedQuestion.id)"
+                />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
         
@@ -67,9 +79,10 @@
                   v-for="(word, index) in wordFrequency" 
                   :key="index"
                   class="word-tag"
-                  :style="{ fontSize: getWordSize(word.count) + 'px' }"
+                  :class="getWordClass(word.count)"
+                  :style="{ ...getWordStyle(word, index), color: getWordColor(word.count, index) }"
                 >
-                  {{ word.word }} ({{ word.count }})
+                  {{ word.word }}
                 </span>
               </div>
               <div v-else class="no-wordcloud">
@@ -291,6 +304,7 @@ const selectedQuestion = ref(null)
 const statistics = ref([])
 const essayAnswers = ref([])  // 问答题答案列表
 const wordFrequency = ref([])  // 词频统计
+const wordPositions = ref([])  // 词云位置数据
 const showQuestionTypeModal = ref(false)
 const showQuestionEditor = ref(false)
 const editingQuestion = ref(null)
@@ -640,7 +654,10 @@ const generateWordCloud = async (answers) => {
       .filter(([word, count]) => count >= 2) // 至少出现2次
       .map(([word, count]) => ({ word, count }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 30)  // 只取前30个高频词
+      .slice(0, 12)  // 只取前12个高频词，减少数量以增加分散度
+    
+    // 计算词云位置（避免重叠）
+    await calculateWordPositions()
     
     console.log('[WordCloud] Generated', wordFrequency.value.length, 'words')
     console.log('[WordCloud] Top words:', wordFrequency.value.slice(0, 10))
@@ -654,9 +671,405 @@ const generateWordCloud = async (answers) => {
 // ✅ 根据词频计算字体大小
 const getWordSize = (count) => {
   const maxCount = wordFrequency.value[0]?.count || 1
-  const minSize = 12
-  const maxSize = 32
+  const minSize = 20
+  const maxSize = 56
   return minSize + (count / maxCount) * (maxSize - minSize)
+}
+
+// ✅ 根据词频获取样式类和颜色
+const getWordClass = (count) => {
+  const maxCount = wordFrequency.value[0]?.count || 1
+  const ratio = count / maxCount
+  
+  if (ratio >= 0.8) {
+    return 'word-tag-large'
+  } else if (ratio >= 0.5) {
+    return 'word-tag-medium'
+  } else {
+    return 'word-tag-small'
+  }
+}
+
+// ✅ 根据词频获取颜色（使用协调的渐变色方案）
+const getWordColor = (count, index) => {
+  const maxCount = wordFrequency.value[0]?.count || 1
+  const ratio = count / maxCount
+  
+  // 使用协调的渐变色方案（参考 simple-word-cloud）
+
+const colorPalette = [
+  // 高频词 - 深灰（带微调）
+  '#121212', // 纯黑（有层次）
+  '#2A2A2A', // 深炭灰
+  '#3D3D3D', // 炭灰
+  '#4F4F4F', // 中深灰
+  
+  // 中频词 - 中灰
+  '#696969', // 暗灰
+  '#808080', // 标准灰
+  '#A9A9A9', // 暗灰2
+  '#C0C0C0', // 银灰
+  
+  // 低频词 - 浅灰
+  '#D3D3D3', // 浅灰
+  '#DCDCDC', // 更浅灰
+  '#E8E8E8', // 淡灰
+  '#F0F0F0'  // 非常淡灰
+]
+  
+  // 根据频率和索引选择颜色，确保颜色分布均匀
+  if (ratio >= 0.8) {
+    // 高频词使用深色，更醒目
+    return colorPalette[index % 4]
+  } else if (ratio >= 0.5) {
+    // 中频词使用中等色
+    return colorPalette[4 + (index % 4)]
+  } else {
+    // 低频词使用浅色
+    return colorPalette[8 + (index % 4)]
+  }
+}
+
+// ✅ 测量文本尺寸
+let measureCanvas = null
+let measureCtx = null
+
+const measureTextSize = (text, fontSize) => {
+  if (!measureCanvas) {
+    measureCanvas = document.createElement('canvas')
+    measureCtx = measureCanvas.getContext('2d')
+  }
+  measureCtx.font = `${fontSize}px sans-serif`
+  const metrics = measureCtx.measureText(text)
+  return {
+    width: Math.ceil(metrics.width),
+    height: Math.ceil(metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent)
+  }
+}
+
+// ✅ 计算旋转后的包围框
+const getRotatedBounds = (width, height, rotation) => {
+  if (rotation === 0) {
+    return { width, height }
+  }
+  const rad = (rotation * Math.PI) / 180
+  const w = width * Math.abs(Math.cos(rad)) + height * Math.abs(Math.sin(rad))
+  const h = width * Math.abs(Math.sin(rad)) + height * Math.abs(Math.cos(rad))
+  return {
+    width: Math.ceil(w),
+    height: Math.ceil(h)
+  }
+}
+
+// ✅ 基于 simple-word-cloud 算法的矩形螺旋扩散位置计算
+const getSpiralPosition = (curWordItem, elWidth, elHeight, centerX, centerY, margin, placedWords) => {
+  let startX, endX, startY, endY
+  // 第一个文本的中心点
+  startX = endX = centerX
+  startY = endY = centerY
+
+  // 根据容器的宽高来计算扩散步长（参考 simple-word-cloud）
+  let stepLeft = 1
+  let stepTop = 1
+  if (elWidth > elHeight) {
+    stepLeft = 1
+    stepTop = elHeight / elWidth
+  } else if (elHeight > elWidth) {
+    stepTop = 1
+    stepLeft = elWidth / elHeight
+  }
+
+  // 检查中心点是否可以放置
+  if (canFitWord(curWordItem, [startX, startY], placedWords, margin, elWidth, elHeight)) {
+    return [startX, startY]
+  }
+
+  // 依次扩散遍历每个像素点（矩形螺旋）
+  while (true) {
+    const curStartX = Math.floor(startX)
+    const curStartY = Math.floor(startY)
+    const curEndX = Math.floor(endX)
+    const curEndY = Math.floor(endY)
+
+    // 遍历矩形右侧的边
+    for (let top = curStartY; top < curEndY; ++top) {
+      const value = [curEndX, top]
+      if (canFitWord(curWordItem, value, placedWords, margin, elWidth, elHeight)) {
+        return value
+      }
+    }
+    // 遍历矩形下面的边
+    for (let left = curEndX; left > curStartX; --left) {
+      const value = [left, curEndY]
+      if (canFitWord(curWordItem, value, placedWords, margin, elWidth, elHeight)) {
+        return value
+      }
+    }
+    // 遍历矩形左侧的边
+    for (let top = curEndY; top > curStartY; --top) {
+      const value = [curStartX, top]
+      if (canFitWord(curWordItem, value, placedWords, margin, elWidth, elHeight)) {
+        return value
+      }
+    }
+    // 遍历矩形上面的边
+    for (let left = curStartX; left < curEndX; ++left) {
+      const value = [left, curStartY]
+      if (canFitWord(curWordItem, value, placedWords, margin, elWidth, elHeight)) {
+        return value
+      }
+    }
+    // 向四周扩散
+    startX -= stepLeft
+    endX += stepLeft
+    startY -= stepTop
+    endY += stepTop
+
+    // 防止无限循环
+    if (startX < -elWidth || endX > elWidth * 2 || startY < -elHeight || endY > elHeight * 2) {
+      break
+    }
+  }
+  
+  // 如果找不到位置，返回中心点（作为后备）
+  return [centerX, centerY]
+}
+
+// ✅ 检查位置是否可以放置词（改进的碰撞检测）
+const canFitWord = (curWordItem, [cx, cy], placedWords, margin, containerWidth, containerHeight) => {
+  const halfWidth = curWordItem.width / 2
+  const halfHeight = curWordItem.height / 2
+  
+  // 检查是否在容器边界内
+  if (cx - halfWidth < margin || cx + halfWidth > containerWidth - margin ||
+      cy - halfHeight < margin || cy + halfHeight > containerHeight - margin) {
+    return false
+  }
+  
+  // 检查是否与已放置的词重叠（使用更严格的间距）
+  const minSpacing = 20 // 最小间距
+  for (const placed of placedWords) {
+    const dx = Math.abs(cx - placed.x)
+    const dy = Math.abs(cy - placed.y)
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    // 计算两个词的边界框半径
+    const currentRadius = Math.sqrt(curWordItem.width * curWordItem.width + curWordItem.height * curWordItem.height) / 2
+    const existingRadius = Math.sqrt(placed.width * placed.width + placed.height * placed.height) / 2
+    
+    // 如果距离小于两个半径之和加上最小间距，则重叠
+    if (distance < currentRadius + existingRadius + minSpacing) {
+      return false
+    }
+  }
+  
+  return true
+}
+
+// ✅ 计算词云位置（使用矩形螺旋扩散算法）
+const calculateWordPositions = async () => {
+  if (wordFrequency.value.length === 0) {
+    wordPositions.value = []
+    return
+  }
+  
+  const placedWords = []
+  // 使用相对尺寸而不是固定尺寸，增大容器以提供更多空间
+  const containerWidth = 800
+  const containerHeight = 500
+  const centerX = containerWidth / 2
+  const centerY = containerHeight / 2
+  const margin = 40 // 边距
+  
+  // 第一个词放在中心
+  const firstWord = wordFrequency.value[0]
+  const firstFontSize = getWordSize(firstWord.count)
+  const firstSize = measureTextSize(firstWord.word, firstFontSize)
+  const firstBounds = getRotatedBounds(firstSize.width, firstSize.height, 0)
+  
+  const firstWordItem = {
+    x: centerX,
+    y: centerY,
+    width: firstBounds.width,
+    height: firstBounds.height,
+    rotation: 0
+  }
+  
+  placedWords.push(firstWordItem)
+  wordPositions.value = [{
+    x: centerX,
+    y: centerY,
+    rotation: 0
+  }]
+  
+  // 从中心向四周扩散，为其他词找位置（使用矩形螺旋算法）
+  for (let i = 1; i < wordFrequency.value.length; i++) {
+    const word = wordFrequency.value[i]
+    const fontSize = getWordSize(word.count)
+    const rotation = (Math.sin(i * 2.3) * 10) // -10到10度
+    const textSize = measureTextSize(word.word, fontSize)
+    const bounds = getRotatedBounds(textSize.width, textSize.height, rotation)
+    
+    const curWordItem = {
+      width: bounds.width,
+      height: bounds.height,
+      rotation
+    }
+    
+    // 使用矩形螺旋算法找到位置
+    const [x, y] = getSpiralPosition(
+      curWordItem,
+      containerWidth,
+      containerHeight,
+      centerX,
+      centerY,
+      margin,
+      placedWords
+    )
+    
+    // 确保在容器内
+    const halfWidth = bounds.width / 2
+    const halfHeight = bounds.height / 2
+    const finalX = Math.max(margin + halfWidth, Math.min(containerWidth - margin - halfWidth, x))
+    const finalY = Math.max(margin + halfHeight, Math.min(containerHeight - margin - halfHeight, y))
+    
+    placedWords.push({
+      x: finalX,
+      y: finalY,
+      width: bounds.width,
+      height: bounds.height,
+      rotation
+    })
+    
+    wordPositions.value.push({
+      x: finalX,
+      y: finalY,
+      rotation
+    })
+  }
+  
+  // ✅ 计算词云整体边界，然后自适应缩放和居中（参考 simple-word-cloud 的 fitContainer）
+  let minX = Infinity, maxX = -Infinity
+  let minY = Infinity, maxY = -Infinity
+  
+  wordPositions.value.forEach((pos, index) => {
+    const word = wordFrequency.value[index]
+    if (!word) return
+    
+    const fontSize = getWordSize(word.count)
+    const textSize = measureTextSize(word.word, fontSize)
+    const bounds = getRotatedBounds(textSize.width, textSize.height, pos.rotation)
+    
+    const halfWidth = bounds.width / 2
+    const halfHeight = bounds.height / 2
+    
+    minX = Math.min(minX, pos.x - halfWidth)
+    maxX = Math.max(maxX, pos.x + halfWidth)
+    minY = Math.min(minY, pos.y - halfHeight)
+    maxY = Math.max(maxY, pos.y + halfHeight)
+  })
+  
+  // 计算词云的实际宽高和中心
+  const wordCloudWidth = maxX - minX
+  const wordCloudHeight = maxY - minY
+  const wordCloudLeft = minX
+  const wordCloudTop = minY
+  
+  // 计算容器的可用空间（考虑边距）
+  const availableWidth = containerWidth - margin * 2
+  const availableHeight = containerHeight - margin * 2
+  
+  // 计算宽高比（参考 simple-word-cloud）
+  const elRatio = availableWidth / availableHeight
+  const wordCloudRatio = wordCloudWidth / wordCloudHeight
+  
+  let w, h
+  let offsetX = 0
+  let offsetY = 0
+  
+  if (elRatio > wordCloudRatio) {
+    // 词云高度以容器高度为准，宽度根据原比例进行缩放
+    h = availableHeight
+    w = wordCloudRatio * availableHeight
+  } else {
+    // 词云宽度以容器宽度为准，高度根据原比例进行缩放
+    w = availableWidth
+    h = availableWidth / wordCloudRatio
+  }
+  
+  const scale = w / wordCloudWidth
+  
+  // 将词云移动到容器中间（参考 simple-word-cloud）
+  const scaledLeft = wordCloudLeft * scale
+  const scaledTop = wordCloudTop * scale
+  
+  if (elRatio > wordCloudRatio) {
+    offsetY = -scaledTop
+    offsetX = -scaledLeft + (availableWidth - w) / 2 + margin
+  } else {
+    offsetX = -scaledLeft
+    offsetY = -scaledTop + (availableHeight - h) / 2 + margin
+  }
+  
+  // 应用缩放和偏移
+  wordPositions.value.forEach((pos, index) => {
+    const word = wordFrequency.value[index]
+    if (!word) return
+    
+    // 缩放位置
+    pos.x = pos.x * scale + offsetX
+    pos.y = pos.y * scale + offsetY
+    
+    // 保存缩放比例，用于字体大小调整
+    pos.scale = scale
+    
+    // 修正超出容器的词（参考 simple-word-cloud）
+    const fontSize = getWordSize(word.count)
+    const textSize = measureTextSize(word.word, fontSize * scale)
+    const bounds = getRotatedBounds(textSize.width, textSize.height, pos.rotation)
+    
+    if (pos.x + bounds.width / 2 > containerWidth - margin) {
+      pos.x = containerWidth - margin - bounds.width / 2
+    }
+    if (pos.x - bounds.width / 2 < margin) {
+      pos.x = margin + bounds.width / 2
+    }
+    if (pos.y + bounds.height / 2 > containerHeight - margin) {
+      pos.y = containerHeight - margin - bounds.height / 2
+    }
+    if (pos.y - bounds.height / 2 < margin) {
+      pos.y = margin + bounds.height / 2
+    }
+  })
+  
+}
+
+// ✅ 获取词的样式
+const getWordStyle = (word, index) => {
+  const baseFontSize = getWordSize(word.count)
+  const pos = wordPositions.value[index] || { x: 0, y: 0, rotation: 0, scale: 1 }
+  
+  // 应用缩放比例到字体大小
+  const fontSize = baseFontSize * (pos.scale || 1)
+  
+  const animationDelay = index * 0.05
+  
+  // 计算相对于容器的百分比位置（与 calculateWordPositions 中保持一致）
+  const containerWidth = 800
+  const containerHeight = 500
+  
+  // 将绝对位置转换为百分比
+  const percentX = (pos.x / containerWidth) * 100
+  const percentY = (pos.y / containerHeight) * 100
+  
+  return {
+    fontSize: fontSize + 'px',
+    left: percentX + '%',  // 使用百分比定位
+    top: percentY + '%',   // 使用百分比定位
+    transform: `translate(-50%, -50%) rotate(${pos.rotation || 0}deg)`,
+    '--word-index': index,
+    '--animation-delay': animationDelay + 's'
+  }
 }
 
 // 格式化时间
@@ -953,25 +1366,11 @@ const resetAnswerState = () => {
 
 .question-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   padding: 8px 12px;
   background: #f5f5f5;
   border-top: 1px solid #ddd;
-}
-
-.toggle-btn {
-  padding: 4px 12px;
-  background: #9e9e9e;  /* 默认灰色（关闭状态） */
-  color: white;
-  border: 1px solid #9e9e9e;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.toggle-btn.open {
-  background: #4caf50;  /* isOpen=true时绿色（开放状态） */
-  color: white;
-  border-color: #4caf50;
 }
 
 .more-menu {
@@ -1038,16 +1437,91 @@ const resetAnswerState = () => {
   gap: 8px;
 }
 
-.status-indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #f44336;
-  cursor: pointer;
+/* 开关包装器样式 */
+.toggle-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.status-indicator.open {
-  background: #4caf50;
+.toggle-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* 滑动开关样式 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 28px;
+  vertical-align: middle;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 28px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(76, 175, 80, 0.2);
+}
+
+.toggle-switch:hover .toggle-slider {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(76, 175, 80, 0.15);
+}
+
+.toggle-switch:hover input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #5cbf60 0%, #4caf50 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(76, 175, 80, 0.2);
+}
+
+.toggle-switch:active .toggle-slider:before {
+  transform: scale(0.95);
+}
+
+.toggle-switch input:checked:active + .toggle-slider:before {
+  transform: translateX(24px) scale(0.95);
 }
 
 .question-content-box {
@@ -1075,52 +1549,139 @@ const resetAnswerState = () => {
 
 .wordcloud-section {
   margin-bottom: 24px;
-  padding: 16px;
+  padding: 20px;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  /* 确保词云容器居中 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wordcloud-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  align-self: flex-start; /* 标题左对齐 */
+  width: 100%;
 }
 
 .wordcloud-container {
-  min-height: 160px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 8px;
+  /* 去掉固定宽高，改为相对单位 */
+  width: 100%;
+  min-height: 400px;
+  padding: 30px; /* 减小内边距 */
+  background: white;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  /* 添加flex布局使内容居中 */
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+}
+
+.wordcloud-container::before {
+  display: none; /* 隐藏装饰背景 */
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
 }
 
 .word-tags {
+  /* 使用固定宽高比，与计算逻辑保持一致，同时支持响应式 */
+  position: relative;
+  width: 800px;
+  height: 500px;
+  max-width: calc(100% - 60px); /* 考虑父容器的padding */
+  max-height: calc(100% - 60px);
+  aspect-ratio: 800 / 500; /* 保持宽高比 */
+  margin: 0 auto;
+  z-index: 1;
+  /* 确保内容居中 */
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   justify-content: center;
   align-items: center;
 }
 
 .word-tag {
-  display: inline-block;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 20px;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: default;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  position: absolute;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: fadeInScale 0.6s ease-out var(--animation-delay, 0s) both;
+  transform-origin: center center;
+  line-height: 1.2;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.word-tag-large {
+  background: transparent;
+  font-weight: 700;
+  padding: 4px 8px;
+  letter-spacing: 0.5px;
+}
+
+.word-tag-medium {
+  background: transparent;
+  font-weight: 600;
+  padding: 4px 8px;
+  letter-spacing: 0.3px;
+}
+
+.word-tag-small {
+  background: transparent;
+  font-weight: 500;
+  padding: 4px 8px;
+  letter-spacing: 0.2px;
 }
 
 .word-tag:hover {
-  transform: scale(1.1) translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translate(-50%, -50%) scale(1.08) !important;
+  z-index: 10;
+  opacity: 0.9;
+}
+
+.word-count {
+  font-size: 0.65em;
+  opacity: 0.7;
+  margin-left: 4px;
+  font-weight: 400;
 }
 
 .no-wordcloud {
   text-align: center;
   color: #999;
   font-size: 14px;
-  padding: 40px;
+  padding: 60px 40px;
+  position: relative;
+  z-index: 1;
 }
 
 .answers-section {
