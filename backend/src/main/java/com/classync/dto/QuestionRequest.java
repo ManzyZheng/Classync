@@ -10,6 +10,7 @@ public class QuestionRequest {
     private String type;
     private String content;
     private List<OptionRequest> options;
+    private List<Object> questions; // 测验的子问题列表
     private Boolean isOpen;
     private Boolean isFinished;
 }

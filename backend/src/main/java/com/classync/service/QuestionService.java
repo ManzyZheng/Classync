@@ -3,6 +3,7 @@ package com.classync.service;
 import com.classync.dto.QuestionWithOptionsDTO;
 import com.classync.entity.Question;
 import com.classync.entity.QuestionOption;
+import com.classync.repository.AnswerRepository;
 import com.classync.repository.QuestionOptionRepository;
 import com.classync.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ public class QuestionService {
     
     private final QuestionRepository questionRepository;
     private final QuestionOptionRepository questionOptionRepository;
+    private final AnswerRepository answerRepository;
     
     public List<Question> getQuestionsByClassroomId(Long classroomId) {
         return questionRepository.findByClassroomIdOrderByCreatedAtAsc(classroomId);
@@ -41,6 +43,7 @@ public class QuestionService {
         dto.setClassroomId(question.getClassroomId());
         dto.setType(question.getType());
         dto.setContent(question.getContent());
+        dto.setQuestions(question.getQuestions()); // 设置测验的子问题JSON字符串
         dto.setIsOpen(question.getIsOpen());
         dto.setIsFinished(question.getIsFinished());
         dto.setOptions(options);
@@ -74,6 +77,8 @@ public class QuestionService {
         Question existing = existingOpt.get();
         existing.setContent(question.getContent());
         existing.setType(question.getType());
+        // 更新questions字段（测验的子问题）
+        existing.setQuestions(question.getQuestions());
         // 保留isOpen和isFinished状态，如果传入了新值则更新
         if (question.getIsOpen() != null) {
             existing.setIsOpen(question.getIsOpen());
@@ -98,8 +103,13 @@ public class QuestionService {
         return updated;
     }
     
+    @Transactional
     public void deleteQuestion(Long id) {
+        // 先删除关联的答案
+        answerRepository.deleteByQuestionId(id);
+        // 再删除问题选项
         questionOptionRepository.deleteByQuestionId(id);
+        // 最后删除问题本身
         questionRepository.deleteById(id);
     }
     

@@ -23,6 +23,9 @@ public class Question {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
     
+    @Column(name = "questions", columnDefinition = "TEXT")
+    private String questions; // JSON字符串，存储测验的子问题
+    
     @Column(name = "is_open")
     private Boolean isOpen = false;
     

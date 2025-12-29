@@ -6,6 +6,7 @@ import com.classync.dto.QuestionWithOptionsDTO;
 import com.classync.entity.Question;
 import com.classync.entity.QuestionOption;
 import com.classync.service.QuestionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,7 @@ import java.util.List;
 public class QuestionController {
 
     private final QuestionService questionService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping("/classroom/{classroomId}")
     public ResponseEntity<List<Question>> getQuestionsByClassroomId(@PathVariable Long classroomId) {
@@ -44,6 +46,16 @@ public class QuestionController {
         // 设置默认状态为关闭
         question.setIsOpen(request.getIsOpen() != null ? request.getIsOpen() : false);
         question.setIsFinished(request.getIsFinished() != null ? request.getIsFinished() : false);
+        
+        // 处理测验的子问题（序列化为JSON字符串）
+        if (request.getQuestions() != null && !request.getQuestions().isEmpty()) {
+            try {
+                question.setQuestions(objectMapper.writeValueAsString(request.getQuestions()));
+            } catch (Exception e) {
+                // 如果序列化失败，记录错误但不中断流程
+                System.err.println("Failed to serialize questions: " + e.getMessage());
+            }
+        }
 
         List<QuestionOption> options = new ArrayList<>();
         if (request.getOptions() != null) {
@@ -70,6 +82,20 @@ public class QuestionController {
         }
         if (request.getIsFinished() != null) {
             question.setIsFinished(request.getIsFinished());
+        }
+        
+        // 处理测验的子问题（序列化为JSON字符串）
+        if (request.getQuestions() != null) {
+            try {
+                if (request.getQuestions().isEmpty()) {
+                    question.setQuestions(null);
+                } else {
+                    question.setQuestions(objectMapper.writeValueAsString(request.getQuestions()));
+                }
+            } catch (Exception e) {
+                // 如果序列化失败，记录错误但不中断流程
+                System.err.println("Failed to serialize questions: " + e.getMessage());
+            }
         }
 
         List<QuestionOption> options = new ArrayList<>();
