@@ -18,13 +18,13 @@ public class AnswerService {
     private final QuestionOptionRepository questionOptionRepository;
     
     public Answer submitAnswer(Answer answer) {
-        // 检查用户是否已经回答过（选择题只能答一次）
+        // 检查用户是否已经回答过：所有题型统一只允许提交一次
         Optional<Answer> existingAnswer = answerRepository.findByQuestionIdAndUserId(
             answer.getQuestionId(), answer.getUserId());
         
         if (existingAnswer.isPresent()) {
-            // 问答题可以多次回答，直接保存
-            return answerRepository.save(answer);
+            // 已经存在答案，直接返回第一次的答案，不再新增记录
+            return existingAnswer.get();
         }
         
         return answerRepository.save(answer);
