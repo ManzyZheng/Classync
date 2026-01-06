@@ -14,22 +14,26 @@
       </div>
     </div>
     
-    <!-- 课堂码浮层 -->
+    <!-- 课堂码和二维码浮层 -->
     <transition name="fade">
       <div v-if="showClassroomCode && classroomCode" class="classroom-code-overlay">
         <div class="code-label">课堂码</div>
         <div class="code-value">{{ classroomCode }}</div>
+        <div class="qrcode-container">
+          <canvas ref="qrcodeCanvas"></canvas>
+        </div>
       </div>
     </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import websocket from '../utils/websocket'
 import PdfViewer from '../components/PdfViewer.vue'
+import QRCode from 'qrcode'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +44,7 @@ const currentPage = ref(1)
 const totalPages = ref(0)
 const showClassroomCode = ref(false)  // 展示课堂码开关状态
 const classroomCode = ref('')  // 课堂码
+const qrcodeCanvas = ref(null)  // 二维码 canvas 引用
 
 onMounted(async () => {
   await loadClassroom()
@@ -53,17 +58,23 @@ onUnmounted(() => {
 const loadClassroom = async () => {
   try {
     const data = await api.classroom.getById(classroomId.value)
+    console.log('[Display] Classroom data loaded:', data)
     
     // 获取初始页码
     currentPage.value = data.currentPage || 1
     
     // 保存课堂码
     classroomCode.value = data.classCode || ''
+    console.log('[Display] Classroom code set to:', classroomCode.value)
     
     // 加载 PDF
     if (data.pdfPath) {
       pdfUrl.value = `/uploads/${data.pdfPath}`
     }
+    
+    // ⚠️ 临时方案：如果 WebSocket 无法连接，可以手动设置为显示状态进行测试
+    // 生产环境请删除此行，使用 WebSocket 控制
+    // showClassroomCode.value = true
   } catch (error) {
     console.error('Failed to load classroom:', error)
     alert('加载课堂失败')
@@ -90,9 +101,22 @@ const connectWebSocket = async () => {
       },
       // ✅ 订阅 DISPLAY_CODE_TOGGLE 事件
       onDisplayCodeToggle: (payload) => {
-        console.log('[Display] Display code toggle:', payload)
+        console.log('[Display] Display code toggle received:', payload)
+        console.log('[Display] Current classroomCode:', classroomCode.value)
+        console.log('[Display] Current showClassroomCode:', showClassroomCode.value)
+        
         if (payload.show !== undefined) {
           showClassroomCode.value = payload.show
+          console.log('[Display] Updated showClassroomCode to:', showClassroomCode.value)
+          
+          // 当显示时，等待 DOM 更新后生成二维码
+          if (payload.show && classroomCode.value) {
+            nextTick(() => {
+              console.log('[Display] Generating QR code after nextTick')
+              console.log('[Display] Canvas element:', qrcodeCanvas.value)
+              generateQRCode()
+            })
+          }
         }
       }
     })
@@ -100,6 +124,46 @@ const connectWebSocket = async () => {
     console.error('Failed to connect WebSocket:', error)
   }
 }
+
+// 生成二维码
+const generateQRCode = async () => {
+  console.log('[Display] generateQRCode called')
+  console.log('[Display] Canvas ref:', qrcodeCanvas.value)
+  console.log('[Display] Classroom code:', classroomCode.value)
+  
+  if (!qrcodeCanvas.value || !classroomCode.value) {
+    console.warn('[Display] Cannot generate QR code - canvas or code missing')
+    return
+  }
+  
+  try {
+    // 生成二维码内容：完整的 URL
+    const qrContent = `${window.location.origin}/join/${classroomCode.value}`
+    console.log('[Display] QR code content:', qrContent)
+    
+    await QRCode.toCanvas(qrcodeCanvas.value, qrContent, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    })
+    console.log('[Display] QR code generated successfully')
+  } catch (error) {
+    console.error('[Display] Failed to generate QR code:', error)
+  }
+}
+
+// 监听课堂码变化，自动生成二维码
+watch([classroomCode, showClassroomCode], ([code, show]) => {
+  if (show && code) {
+    // 延迟一下确保 canvas 已经渲染
+    setTimeout(() => {
+      generateQRCode()
+    }, 100)
+  }
+})
 </script>
 
 <style scoped>
@@ -166,37 +230,56 @@ const connectWebSocket = async () => {
   font-size: 24px;
 }
 
-/* 课堂码浮层 */
+/* 课堂码和二维码浮层 */
 .classroom-code-overlay {
   position: fixed;
   top: 24px;
   right: 24px;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(10px);
-  padding: 20px 32px;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   z-index: 1000;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-width: 240px;
 }
 
 .code-label {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 8px;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
   text-align: center;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 1px;
+  margin: 0;
 }
 
 .code-value {
-  font-size: 48px;
+  font-size: 36px;
   color: #ffffff;
   font-weight: 700;
   text-align: center;
-  letter-spacing: 4px;
+  letter-spacing: 3px;
   font-family: 'Courier New', monospace;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  margin: 0;
+}
+
+.qrcode-container {
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  margin-top: 8px;
+}
+
+.qrcode-container canvas {
+  display: block;
+  border-radius: 4px;
 }
 
 /* 淡入淡出动画 */

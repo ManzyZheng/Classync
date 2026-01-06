@@ -87,7 +87,7 @@ const completeAuth = async () => {
     if (redirect) {
       router.push(redirect)
     } else {
-      router.push('/home')
+    router.push('/home')
     }
   } catch (error) {
     console.error('Login failed:', error)
