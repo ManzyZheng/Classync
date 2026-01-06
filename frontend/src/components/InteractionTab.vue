@@ -65,13 +65,28 @@
           </div>
         </div>
         
-        <div class="question-content-box">
-          <p>{{ selectedQuestion.content }}</p>
+      <div class="question-content-box">
+        <p>{{ selectedQuestion.content }}</p>
+      </div>
+      
+        <!-- 选择题选项列表 -->
+        <div v-if="(selectedQuestion.type === 'SINGLE_CHOICE' || selectedQuestion.type === 'MULTIPLE_CHOICE' || selectedQuestion.type === 'CHOICE') && selectedQuestion.options && selectedQuestion.options.length > 0" class="question-options-list">
+          <h4>选项列表</h4>
+          <div class="options-list">
+            <div 
+              v-for="(option, index) in selectedQuestion.options"
+              :key="option.id"
+              class="option-item"
+            >
+              <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
+              <span class="option-content">{{ option.content }}</span>
+              <span v-if="option.isCorrect" class="correct-badge">正确答案</span>
+            </div>
+          </div>
         </div>
         
-        <!-- 问答题统计 -->
-        <!-- 测验子问题列表 -->
-        <div v-if="selectedQuestion.type === 'QUIZ'" class="quiz-subquestions-section">
+        <!-- 测验子问题列表（仅列表视图时显示） -->
+        <div v-if="selectedQuestion.type === 'QUIZ' && !viewingSubQuestion" class="quiz-subquestions-section">
           <h4>测验问题列表 ({{ selectedQuestion.questions?.length || 0 }})</h4>
           <div class="quiz-subquestions-list">
             <div 
@@ -79,25 +94,45 @@
               :key="index"
               class="quiz-subquestion-item"
             >
-              <div class="quiz-subquestion-header">
-                <span class="quiz-subquestion-number">问题 {{ index + 1 }}</span>
-                <span class="quiz-subquestion-type">{{ getQuestionTypeName(subQuestion.type) }}</span>
-                <span class="quiz-subquestion-status" :class="{ 'open': subQuestion.isOpen }">
-                  {{ subQuestion.isOpen ? '已开放' : '未开放' }}
-                </span>
-              </div>
-              <div class="quiz-subquestion-content">{{ subQuestion.content }}</div>
-              <div v-if="subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE'" class="quiz-subquestion-stats">
-                <button class="view-stats-btn" @click="viewSubQuestionStats(subQuestion)">查看统计</button>
-              </div>
+            <div class="quiz-subquestion-header">
+              <span class="quiz-subquestion-number">问题 {{ index + 1 }}</span>
+              <span class="quiz-subquestion-type">{{ getQuestionTypeName(subQuestion.type) }}</span>
+              <span class="quiz-subquestion-status" :class="{ 'open': selectedQuestion.isOpen }">
+                {{ selectedQuestion.isOpen ? '已开放' : '未开放' }}
+              </span>
+            </div>
+            <div class="quiz-subquestion-content">{{ subQuestion.content }}</div>
+            <div class="quiz-subquestion-actions">
+              <button class="view-stats-btn" @click="viewSubQuestionStats(subQuestion, index)">查看统计</button>
+            </div>
             </div>
             <div v-if="!selectedQuestion.questions || selectedQuestion.questions.length === 0" class="no-subquestions">
               暂无子问题
             </div>
           </div>
         </div>
+
+        <!-- 测验子问题单独查看页 -->
+        <div 
+          v-if="selectedQuestion.type === 'QUIZ' && viewingSubQuestion" 
+          class="quiz-subquestion-detail"
+        >
+          <div class="subquestion-detail-header">
+            <button class="back-btn" @click="viewingSubQuestion = null">← 返回测验列表</button>
+            <div class="subquestion-meta">
+              <span class="subquestion-title">子问题 {{ (viewingSubQuestion.index ?? 0) + 1 }}</span>
+              <span class="subquestion-type-tag">{{ getQuestionTypeName(viewingSubQuestion.type) }}</span>
+              <span class="quiz-subquestion-status" :class="{ 'open': selectedQuestion.isOpen }">
+                {{ selectedQuestion.isOpen ? '已开放' : '未开放' }}
+              </span>
+            </div>
+          </div>
+          <div class="subquestion-detail-content">
+            {{ viewingSubQuestion.content }}
+          </div>
+        </div>
         
-        <div v-if="selectedQuestion.type === 'ESSAY' || (selectedQuestion.type === 'QUIZ' && viewingSubQuestion)" class="essay-statistics">
+        <div v-if="selectedQuestion.type === 'ESSAY' || (selectedQuestion.type === 'QUIZ' && viewingSubQuestion && viewingSubQuestion.type === 'ESSAY')" class="essay-statistics">
           <!-- 词云区域（放在上面） -->
           <div class="wordcloud-section">
             <div class="wordcloud-header">
@@ -169,7 +204,15 @@
             </div>
           </div>
         </div>
-        <div v-if="selectedQuestion.type === 'SINGLE_CHOICE' || selectedQuestion.type === 'MULTIPLE_CHOICE' || selectedQuestion.type === 'CHOICE'" class="choice-statistics">
+        <div 
+          v-if="
+            selectedQuestion.type === 'SINGLE_CHOICE' ||
+            selectedQuestion.type === 'MULTIPLE_CHOICE' ||
+            selectedQuestion.type === 'CHOICE' ||
+            (selectedQuestion.type === 'QUIZ' && viewingSubQuestion && (viewingSubQuestion.type === 'SINGLE_CHOICE' || viewingSubQuestion.type === 'MULTIPLE_CHOICE' || viewingSubQuestion.type === 'CHOICE'))
+          "
+          class="choice-statistics"
+        >
           <div 
             v-for="stat in statistics" 
             :key="stat.optionContent"
@@ -227,15 +270,98 @@
           </button>
         </div>
         
-        <!-- 选择题 -->
-        <div v-if="currentQuestion.type === 'CHOICE'" class="choice-question">
+        <!-- 加载中或问题为空 -->
+        <div v-if="!currentQuestion" class="loading-question">
+          <div class="empty-box">正在加载问题...</div>
+        </div>
+        
+        <!-- 测验类型：显示子问题列表 -->
+        <div v-else-if="currentQuestion.type === 'QUIZ'" class="quiz-question">
+          <h3>{{ currentQuestion.content }}</h3>
+          
+          <div v-if="currentQuestion.questions && currentQuestion.questions.length > 0" class="quiz-subquestions">
+            <div 
+              v-for="(subQuestion, index) in currentQuestion.questions"
+              :key="index"
+              class="subquestion-card"
+            >
+              <div class="subquestion-header">
+                <span class="subquestion-number">问题 {{ index + 1 }}</span>
+                <span class="subquestion-type">{{ getQuestionTypeName(subQuestion.type) }}</span>
+              </div>
+              <div class="subquestion-content">{{ subQuestion.content }}</div>
+              
+              <!-- 单选题子问题 -->
+              <div v-if="subQuestion.type === 'SINGLE_CHOICE' && subQuestion.options" class="subquestion-options">
+                <div 
+                  v-for="(option, optIndex) in subQuestion.options"
+                  :key="optIndex"
+                  :class="['option', { 
+                    selected: selectedQuizAnswers[index] === option.content,
+                    disabled: isQuestionSubmitted
+                  }]"
+                  @click="selectQuizOption(index, option.content, 'SINGLE_CHOICE')"
+                >
+                  {{ option.content }}
+                </div>
+              </div>
+              
+              <!-- 多选题子问题 -->
+              <div v-if="subQuestion.type === 'MULTIPLE_CHOICE' && subQuestion.options" class="subquestion-options">
+                <div 
+                  v-for="(option, optIndex) in subQuestion.options"
+                  :key="optIndex"
+                  :class="['option', { 
+                    selected: isQuizOptionSelected(index, option.content),
+                    disabled: isQuestionSubmitted
+                  }]"
+                  @click="selectQuizOption(index, option.content, 'MULTIPLE_CHOICE')"
+                >
+                  {{ option.content }}
+                </div>
+              </div>
+              
+              <!-- 问答题子问题 -->
+              <div v-if="subQuestion.type === 'ESSAY'" class="subquestion-essay">
+                <textarea 
+                  v-model="quizEssayAnswers[index]"
+                  :disabled="isQuestionSubmitted"
+                  :placeholder="'请输入问题 ' + (index + 1) + ' 的答案'"
+                  rows="3"
+                ></textarea>
+              </div>
+            </div>
+            
+            <button 
+              class="submit-btn"
+              :disabled="!canSubmitQuiz || isQuestionSubmitted"
+              @click="submitQuizAnswer"
+            >
+              {{ isQuestionSubmitted ? '已提交' : '提交全部答案' }}
+            </button>
+            
+            <div v-if="isQuestionSubmitted" class="submitted-message">
+              答案已提交，等待老师查看结果
+            </div>
+          </div>
+          
+          <div v-else class="no-subquestions">
+            <div class="empty-box">该测验暂无子问题</div>
+          </div>
+        </div>
+        
+        <!-- 单选题 -->
+        <div v-else-if="currentQuestion.type === 'SINGLE_CHOICE'" class="choice-question">
           <h3>{{ currentQuestion.content }}</h3>
           
           <div v-if="!currentQuestion.isFinished" class="options">
             <div 
               v-for="(option, index) in currentQuestion.options"
               :key="option.id"
-              :class="['option', { selected: selectedOption === option.content }]"
+              :class="['option', { 
+                selected: selectedOption === option.content,
+                disabled: isQuestionSubmitted
+              }]"
               @click="selectOption(option.content)"
             >
               {{ option.content }}
@@ -243,12 +369,61 @@
           </div>
           
           <button 
-            v-if="!submitted && !currentQuestion.isFinished"
+            v-if="!currentQuestion.isFinished"
             class="submit-btn"
-            :disabled="!selectedOption"
+            :disabled="!selectedOption || isQuestionSubmitted"
             @click="submitAnswer"
           >
-            提交
+            {{ isQuestionSubmitted ? '已提交' : '提交' }}
+          </button>
+          
+          <!-- 结果展示 -->
+          <div v-if="currentQuestion.isFinished" class="results">
+            <div 
+              v-for="stat in viewerStatistics"
+              :key="stat.optionContent"
+              :class="['result-item', { 
+                correct: stat.isCorrect, 
+                myAnswer: stat.optionContent === myAnswer 
+              }]"
+            >
+              <div class="option-text">{{ stat.optionContent }}</div>
+              <div class="result-bar">
+                <div 
+                  :class="['bar-fill', { correct: stat.isCorrect }]"
+                  :style="{ width: stat.percentage + '%' }"
+                ></div>
+                <span>{{ stat.percentage.toFixed(1) }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 多选题 -->
+        <div v-else-if="currentQuestion.type === 'MULTIPLE_CHOICE'" class="choice-question">
+          <h3>{{ currentQuestion.content }}</h3>
+          
+          <div v-if="!currentQuestion.isFinished" class="options">
+            <div 
+              v-for="(option, index) in currentQuestion.options"
+              :key="option.id"
+              :class="['option', { 
+                selected: selectedOptions.includes(option.content),
+                disabled: isQuestionSubmitted
+              }]"
+              @click="toggleOption(option.content)"
+            >
+              {{ option.content }}
+            </div>
+          </div>
+          
+          <button 
+            v-if="!currentQuestion.isFinished"
+            class="submit-btn"
+            :disabled="selectedOptions.length === 0 || isQuestionSubmitted"
+            @click="submitMultipleChoiceAnswer"
+          >
+            {{ isQuestionSubmitted ? '已提交' : '提交' }}
           </button>
           
           <!-- 结果展示 -->
@@ -274,15 +449,30 @@
         </div>
         
         <!-- 问答题 -->
-        <div v-if="currentQuestion.type === 'ESSAY'" class="essay-question">
+        <div v-else-if="currentQuestion.type === 'ESSAY'" class="essay-question">
           <h3>{{ currentQuestion.content }}</h3>
           
           <div v-if="!currentQuestion.isFinished" class="essay-input">
             <textarea 
               v-model="essayAnswer"
+              :disabled="isQuestionSubmitted"
               placeholder="请输入您的答案"
             ></textarea>
-            <button @click="submitEssayAnswer">发送</button>
+            <button 
+              :disabled="!essayAnswer.trim() || isQuestionSubmitted"
+              @click="submitEssayAnswer"
+            >
+              {{ isQuestionSubmitted ? '已提交' : '发送' }}
+            </button>
+          </div>
+
+          <!-- 我的提交记录展示 -->
+          <div 
+            v-if="isQuestionSubmitted && questionSelectedOptions[currentQuestion.id]?.essay"
+            class="my-essay-record"
+          >
+            <h4>我的提交</h4>
+            <p>{{ questionSelectedOptions[currentQuestion.id].essay }}</p>
           </div>
           
           <div class="essay-wordcloud">
@@ -483,7 +673,11 @@ const openQuestions = ref([])
 const currentQuestionIndex = ref(0)
 const currentQuestion = ref(null)
 const selectedOption = ref(null)
+const selectedOptions = ref([]) // 多选题选中的选项
 const submitted = ref(false)
+const submittedQuestions = ref({}) // 记录每个问题是否已提交 { questionId: true }
+// 保存每个问题的选项状态，用于提交后恢复显示
+const questionSelectedOptions = ref({}) // { questionId: { single: option, multiple: [options], essay: text } }
 const myAnswer = ref(null)
 const viewerStatistics = ref([])
 const essayAnswer = ref('')
@@ -492,6 +686,9 @@ const essayWordcloudCanvas = ref(null)
 const showWordCloud = ref(false) // 默认不显示词云
 const useExternalWordCloud = ref(true) // 默认使用外部API词云
 const viewingSubQuestion = ref(null) // 当前查看的测验子问题
+// 测验相关状态
+const selectedQuizAnswers = ref({}) // { questionIndex: selectedOption } 或 { questionIndex: [selectedOptions] }
+const quizEssayAnswers = ref({}) // { questionIndex: answerText }
 
 onMounted(() => {
   // 确保用户信息已加载
@@ -557,7 +754,9 @@ const handleAnswerSubmitted = (payload) => {
       // 问答题：刷新答案列表和词云
       console.log('[InteractionTab] Refreshing essay answers for question:', questionId)
       loadEssayAnswers(questionId)
-    } else if (selectedQuestion.value.type === 'CHOICE') {
+    } else if (selectedQuestion.value.type === 'CHOICE' || 
+               selectedQuestion.value.type === 'SINGLE_CHOICE' || 
+               selectedQuestion.value.type === 'MULTIPLE_CHOICE') {
       // 选择题：刷新统计数据
       console.log('[InteractionTab] Refreshing choice statistics for question:', questionId)
       loadStatistics(questionId)
@@ -585,6 +784,13 @@ const updateQuestionState = (questionId, isOpen) => {
   const questionIndex = questions.value.findIndex(q => q.id === questionId)
   if (questionIndex !== -1) {
     questions.value[questionIndex].isOpen = isOpen
+    // 如果是测验题，子问题跟随开放状态（前端展示用）
+    if (questions.value[questionIndex].type === 'QUIZ' && Array.isArray(questions.value[questionIndex].questions)) {
+      questions.value[questionIndex].questions = questions.value[questionIndex].questions.map(q => ({
+        ...q,
+        isOpen
+      }))
+    }
   } else {
     console.warn('[InteractionTab] Question not found in local list:', questionId)
     // 如果本地没有这个问题，重新加载列表
@@ -611,6 +817,12 @@ const updateQuestionState = (questionId, isOpen) => {
     // 如果是当前显示的问题，更新它的状态
     if (currentQuestion.value?.id === questionId) {
       currentQuestion.value.isOpen = true
+      if (currentQuestion.value.type === 'QUIZ' && Array.isArray(currentQuestion.value.questions)) {
+        currentQuestion.value.questions = currentQuestion.value.questions.map(q => ({
+          ...q,
+          isOpen: true
+        }))
+      }
     } 
     // 如果当前没有显示问题，加载这个新开放的问题
     else if (!currentQuestion.value) {
@@ -651,7 +863,9 @@ const handleQuestionFinished = (payload) => {
   if (currentQuestion.value?.id === questionId) {
     currentQuestion.value.isFinished = true
     // 重新加载统计数据（如果需要）
-    if (currentQuestion.value.type === 'CHOICE') {
+    if (currentQuestion.value.type === 'CHOICE' || 
+        currentQuestion.value.type === 'SINGLE_CHOICE' || 
+        currentQuestion.value.type === 'MULTIPLE_CHOICE') {
       loadViewerStatistics(questionId)
     }
   }
@@ -683,6 +897,13 @@ const loadQuestions = async () => {
         }
       } else if (!question.questions) {
         question.questions = []
+      }
+      // 如果是测验题，同步子问题开放状态为父问题状态（前端展示用）
+      if (question.type === 'QUIZ' && Array.isArray(question.questions)) {
+        question.questions = question.questions.map(q => ({
+          ...q,
+          isOpen: question.isOpen
+        }))
       }
     })
     questions.value = data
@@ -725,19 +946,99 @@ const loadQuestions = async () => {
   }
 }
 
+// 观众端：从服务器恢复当前用户对该题的已有答案（防止刷新/重新进入后丢失状态）
+const restoreMyAnswerFromServer = async (questionId, type) => {
+  if (props.isHost) return
+  if (!userStore.currentUser || !userStore.currentUser.id) return
+  try {
+    const answers = await api.answer.getByQuestion(questionId)
+    const myAnswerRecord = answers.find(a => a.userId === userStore.currentUser.id)
+    if (!myAnswerRecord) return
+    
+    submittedQuestions.value[questionId] = true
+    if (!questionSelectedOptions.value[questionId]) {
+      questionSelectedOptions.value[questionId] = {}
+    }
+    
+    if (type === 'ESSAY') {
+      questionSelectedOptions.value[questionId].essay = myAnswerRecord.content
+      // 只在当前题目是问答题时同步到输入框
+      if (currentQuestion.value && currentQuestion.value.id === questionId) {
+        essayAnswer.value = myAnswerRecord.content
+      }
+    }
+    // 这里也可以按需扩展选择题等类型的恢复逻辑
+  } catch (e) {
+    console.error('[InteractionTab] Failed to restore viewer answer from server:', e)
+  }
+}
+
 const loadQuestionDetail = async (questionId) => {
   try {
     console.log('[InteractionTab] Loading question detail:', questionId)
     const data = await api.question.getById(questionId)
+    
+    // 处理 questions 字段：如果是 JSON 字符串，需要解析
+    if (data.questions && typeof data.questions === 'string') {
+      try {
+        data.questions = JSON.parse(data.questions)
+        console.log('[InteractionTab] Parsed questions JSON in detail:', data.questions)
+      } catch (e) {
+        console.error('[InteractionTab] Failed to parse questions JSON in detail:', e)
+        data.questions = []
+      }
+    } else if (!data.questions) {
+      data.questions = []
+    }
+    // 如果是测验题，子题开放状态跟随父题（展示用）
+    if (data.type === 'QUIZ' && Array.isArray(data.questions)) {
+      data.questions = data.questions.map(q => ({
+        ...q,
+        isOpen: data.isOpen
+      }))
+    }
+    
     currentQuestion.value = data
+
+    // 观众端：优先从服务器恢复一次历史答案（例如刷新页面后）
+    if (!props.isHost && data.type === 'ESSAY' && !submittedQuestions.value[questionId]) {
+      await restoreMyAnswerFromServer(questionId, data.type)
+    }
+
+    const wasSubmitted = !!submittedQuestions.value[questionId]
     console.log('[InteractionTab] Question detail loaded:', {
       id: data.id,
       type: data.type,
       isOpen: data.isOpen,
-      isFinished: data.isFinished
+      isFinished: data.isFinished,
+      questionsCount: Array.isArray(data.questions) ? data.questions.length : 0,
+      isSubmitted: wasSubmitted
     })
     
-    if (data.isFinished && data.type === 'CHOICE') {
+    // 恢复该问题的选项/答案状态（如果已保存）
+    const savedState = questionSelectedOptions.value[questionId]
+    if (savedState) {
+      if (savedState.single !== undefined) {
+        selectedOption.value = savedState.single
+      }
+      if (savedState.multiple) {
+        selectedOptions.value = [...savedState.multiple]
+      }
+      if (savedState.essay !== undefined) {
+        essayAnswer.value = savedState.essay
+      }
+      if (savedState.quiz) {
+        selectedQuizAnswers.value = { ...savedState.quiz.answers }
+        quizEssayAnswers.value = { ...savedState.quiz.essays }
+      }
+    } else {
+      // 如果问题未提交且没有保存的状态，重置当前题目的本地作答状态
+      resetAnswerState()
+    }
+    // 恢复提交状态
+    submitted.value = wasSubmitted
+    
+    if (data.isFinished && (data.type === 'CHOICE' || data.type === 'SINGLE_CHOICE' || data.type === 'MULTIPLE_CHOICE')) {
       loadViewerStatistics(questionId)
     }
   } catch (error) {
@@ -746,50 +1047,133 @@ const loadQuestionDetail = async (questionId) => {
   }
 }
 
-// 查看测验子问题的统计
-const viewSubQuestionStats = async (subQuestion) => {
-  viewingSubQuestion.value = subQuestion
-  // 如果是选择题类型，加载统计
-  if (subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE') {
-    // 注意：这里需要根据实际的API来加载子问题的统计
-    // 如果子问题有独立的ID，可以使用 loadStatistics(subQuestion.id)
-    // 如果没有，可能需要从测验的答案中筛选
-    console.log('Viewing sub-question stats:', subQuestion)
-  } else if (subQuestion.type === 'ESSAY') {
-    // 如果是问答题，加载答案和词云
-    // loadEssayAnswers(subQuestion.id)
-    console.log('Viewing sub-question essay answers:', subQuestion)
+// 查看测验子问题的统计（在主持人端）
+const viewSubQuestionStats = async (subQuestion, index) => {
+  viewingSubQuestion.value = { ...subQuestion, index }
+  statistics.value = []
+  essayAnswers.value = []
+  wordFrequency.value = []
+
+  if (!selectedQuestion.value) return
+  const quizId = selectedQuestion.value.id
+
+  try {
+    // 获取整张测验题的所有回答（content 为 JSON）
+    const allAnswers = await api.answer.getByQuestion(quizId)
+    console.log('[Quiz] Loaded quiz answers for sub-question stats:', allAnswers.length)
+
+    // 选择题子问题统计
+    if (subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE') {
+      const optionCountMap = {}
+      let totalSelections = 0
+
+      allAnswers.forEach(ans => {
+        try {
+          const payload = JSON.parse(ans.content)
+          if (!payload.answers || !Array.isArray(payload.answers)) return
+          payload.answers
+            .filter(a => a.subQuestionIndex === index)
+            .forEach(a => {
+              if (!a.content) return
+              // 多选题答案可能是用逗号拼接的，拆开逐个统计
+              const parts = subQuestion.type === 'MULTIPLE_CHOICE'
+                ? a.content.split(',').map(p => p.trim()).filter(Boolean)
+                : [a.content.trim()]
+              parts.forEach(p => {
+                optionCountMap[p] = (optionCountMap[p] || 0) + 1
+                totalSelections++
+              })
+            })
+        } catch (e) {
+          console.warn('[Quiz] Failed to parse quiz answer JSON:', e)
+        }
+      })
+
+      const opts = subQuestion.options || []
+      statistics.value = opts.map(opt => {
+        const count = optionCountMap[opt.content] || 0
+        return {
+          optionContent: opt.content,
+          count,
+          percentage: totalSelections > 0 ? (count * 100.0 / totalSelections) : 0,
+          isCorrect: !!opt.isCorrect
+        }
+      })
+
+      console.log('[Quiz] Sub-question choice statistics:', statistics.value)
+    }
+    // 问答题子问题统计
+    else if (subQuestion.type === 'ESSAY') {
+      const subAnswers = []
+      allAnswers.forEach(ans => {
+        try {
+          const payload = JSON.parse(ans.content)
+          if (!payload.answers || !Array.isArray(payload.answers)) return
+          payload.answers
+            .filter(a => a.subQuestionIndex === index && a.content)
+            .forEach(a => {
+              subAnswers.push({
+                content: a.content,
+                createdAt: ans.createdAt
+              })
+            })
+        } catch (e) {
+          console.warn('[Quiz] Failed to parse quiz answer JSON for essay:', e)
+        }
+      })
+
+      essayAnswers.value = subAnswers
+      console.log('[Quiz] Sub-question essay answers count:', subAnswers.length)
+      // 复用原有词云生成逻辑
+      await generateWordCloud(subAnswers)
+    }
+  } catch (error) {
+    console.error('[Quiz] Failed to load sub-question statistics:', error)
   }
 }
 
 const selectQuestion = async (question) => {
   viewingSubQuestion.value = null // 清除子问题查看状态
   
-  // 如果问题有 questions 字段（JSON字符串），需要解析
-  if (question.questions && typeof question.questions === 'string') {
-    try {
-      question.questions = JSON.parse(question.questions)
-      console.log('[InteractionTab] Parsed questions from JSON:', question.questions)
-    } catch (e) {
-      console.error('[InteractionTab] Failed to parse questions JSON:', e)
-      question.questions = []
+  try {
+    // 重新加载完整的问题详情（包括选项）
+    const fullQuestion = await api.question.getById(question.id)
+    
+    // 处理 questions 字段：如果是 JSON 字符串，需要解析
+    if (fullQuestion.questions && typeof fullQuestion.questions === 'string') {
+      try {
+        fullQuestion.questions = JSON.parse(fullQuestion.questions)
+        console.log('[InteractionTab] Parsed questions from JSON:', fullQuestion.questions)
+      } catch (e) {
+        console.error('[InteractionTab] Failed to parse questions JSON:', e)
+        fullQuestion.questions = []
+      }
+    } else if (!fullQuestion.questions) {
+      fullQuestion.questions = []
     }
-  } else if (!question.questions) {
-    question.questions = []
-  }
-  
-  selectedQuestion.value = question
-  console.log('[InteractionTab] Selected question:', {
-    id: question.id,
-    type: question.type,
-    questionsCount: Array.isArray(question.questions) ? question.questions.length : 0,
-    questions: question.questions
-  })
-  
-  if (question.type === 'CHOICE') {
-    loadStatistics(question.id)
-  } else if (question.type === 'ESSAY') {
-    loadEssayAnswers(question.id)
+    
+    selectedQuestion.value = fullQuestion
+    console.log('[InteractionTab] Selected question:', {
+      id: fullQuestion.id,
+      type: fullQuestion.type,
+      optionsCount: fullQuestion.options ? fullQuestion.options.length : 0,
+      questionsCount: Array.isArray(fullQuestion.questions) ? fullQuestion.questions.length : 0,
+      options: fullQuestion.options,
+      questions: fullQuestion.questions
+    })
+    
+    // 根据问题类型加载相应的统计数据
+    if (fullQuestion.type === 'CHOICE' || 
+        fullQuestion.type === 'SINGLE_CHOICE' || 
+        fullQuestion.type === 'MULTIPLE_CHOICE') {
+      loadStatistics(fullQuestion.id)
+    } else if (fullQuestion.type === 'ESSAY') {
+      loadEssayAnswers(fullQuestion.id)
+    }
+  } catch (error) {
+    console.error('[InteractionTab] Failed to load question detail:', error)
+    // 如果加载失败，至少使用传入的问题对象
+    selectedQuestion.value = question
   }
 }
 
@@ -1539,8 +1923,76 @@ const handleQuestionSaved = () => {
 
 // 观众答题
 const selectOption = (option) => {
-  if (!submitted.value) {
+  if (!isQuestionSubmitted.value) {
     selectedOption.value = option
+  }
+}
+
+// 多选题：切换选项
+const toggleOption = (option) => {
+  if (!isQuestionSubmitted.value) {
+    const index = selectedOptions.value.indexOf(option)
+    if (index > -1) {
+      selectedOptions.value.splice(index, 1)
+    } else {
+      selectedOptions.value.push(option)
+    }
+  }
+}
+
+// 提交多选题答案（每个选项单独一条答案，便于统计）
+const submitMultipleChoiceAnswer = async () => {
+  if (selectedOptions.value.length === 0) return
+  
+  if (!currentQuestion.value) {
+    console.error('[InteractionTab] Cannot submit: currentQuestion is null')
+    alert('问题加载失败，请刷新页面')
+    return
+  }
+  
+  if (!userStore.currentUser || !userStore.currentUser.id) {
+    console.error('[InteractionTab] Cannot submit: currentUser is null or missing id')
+    alert('用户信息未加载，请刷新页面重新登录')
+    return
+  }
+  
+  const questionId = currentQuestion.value.id
+  
+  // 前端防止重复提交
+  if (submittedQuestions.value[questionId]) {
+    alert('你已经提交过本题啦，不能重复提交～')
+    return
+  }
+  
+  try {
+    console.log('[InteractionTab] Submitting multiple choice answer:', {
+      questionId,
+      options: selectedOptions.value
+    })
+    
+    // 为每个选中的选项单独提交一条答案记录
+    await Promise.all(selectedOptions.value.map(option =>
+      api.answer.submit({
+        questionId,
+        userId: userStore.currentUser.id,
+        content: option
+      })
+    ))
+    
+    const answerContent = selectedOptions.value.join(', ')
+    console.log('[InteractionTab] Multiple choice answer submitted successfully')
+    submitted.value = true
+    submittedQuestions.value[questionId] = true
+    // 保存选项状态
+    if (!questionSelectedOptions.value[questionId]) {
+      questionSelectedOptions.value[questionId] = {}
+    }
+    questionSelectedOptions.value[questionId].multiple = [...selectedOptions.value]
+    myAnswer.value = answerContent
+    websocket.sendAnswerSubmit(props.classroomId, questionId)
+  } catch (error) {
+    console.error('Failed to submit multiple choice answer:', error)
+    alert('提交失败，请重试')
   }
 }
 
@@ -1559,23 +2011,37 @@ const submitAnswer = async () => {
     alert('用户信息未加载，请刷新页面重新登录')
     return
   }
+
+  const questionId = currentQuestion.value.id
+
+  // 前端防止重复提交
+  if (submittedQuestions.value[questionId]) {
+    alert('你已经提交过本题啦，不能重复提交～')
+    return
+  }
   
   try {
     console.log('[InteractionTab] Submitting answer:', {
-      questionId: currentQuestion.value.id,
+      questionId,
       option: selectedOption.value
     })
     
     await api.answer.submit({
-      questionId: currentQuestion.value.id,
+      questionId,
       userId: userStore.currentUser.id,
       content: selectedOption.value
     })
     
     console.log('[InteractionTab] Answer submitted successfully')
     submitted.value = true
+    submittedQuestions.value[questionId] = true
+    // 保存选项状态
+    if (!questionSelectedOptions.value[questionId]) {
+      questionSelectedOptions.value[questionId] = {}
+    }
+    questionSelectedOptions.value[questionId].single = selectedOption.value
     myAnswer.value = selectedOption.value
-    websocket.sendAnswerSubmit(props.classroomId, currentQuestion.value.id)
+    websocket.sendAnswerSubmit(props.classroomId, questionId)
   } catch (error) {
     console.error('Failed to submit answer:', error)
     alert('提交失败，请重试')
@@ -1597,22 +2063,36 @@ const submitEssayAnswer = async () => {
     alert('用户信息未加载，请刷新页面重新登录')
     return
   }
+
+  const questionId = currentQuestion.value.id
+
+  // 前端防止重复提交
+  if (submittedQuestions.value[questionId]) {
+    alert('你已经提交过本题啦，不能重复提交～')
+    return
+  }
   
   try {
     console.log('[InteractionTab] Submitting essay answer:', {
-      questionId: currentQuestion.value.id,
+      questionId,
       content: essayAnswer.value
     })
     
     await api.answer.submit({
-      questionId: currentQuestion.value.id,
+      questionId,
       userId: userStore.currentUser.id,
       content: essayAnswer.value
     })
     
     console.log('[InteractionTab] Essay answer submitted successfully')
-    essayAnswer.value = ''
-    websocket.sendAnswerSubmit(props.classroomId, currentQuestion.value.id)
+    submitted.value = true
+    submittedQuestions.value[questionId] = true
+    // 保存答案内容（提交后不清空，保持显示）
+    if (!questionSelectedOptions.value[questionId]) {
+      questionSelectedOptions.value[questionId] = {}
+    }
+    questionSelectedOptions.value[questionId].essay = essayAnswer.value
+    websocket.sendAnswerSubmit(props.classroomId, questionId)
   } catch (error) {
     console.error('Failed to submit essay answer:', error)
     alert('提交失败，请重试')
@@ -1635,11 +2115,161 @@ const nextQuestion = () => {
   }
 }
 
+// 测验：选择子问题选项
+const selectQuizOption = (questionIndex, optionContent, questionType) => {
+  if (isQuestionSubmitted.value) return
+  
+  if (questionType === 'SINGLE_CHOICE') {
+    // 单选题：只能选一个
+    selectedQuizAnswers.value[questionIndex] = optionContent
+  } else if (questionType === 'MULTIPLE_CHOICE') {
+    // 多选题：可以选多个
+    if (!selectedQuizAnswers.value[questionIndex]) {
+      selectedQuizAnswers.value[questionIndex] = []
+    }
+    const index = selectedQuizAnswers.value[questionIndex].indexOf(optionContent)
+    if (index > -1) {
+      selectedQuizAnswers.value[questionIndex].splice(index, 1)
+    } else {
+      selectedQuizAnswers.value[questionIndex].push(optionContent)
+    }
+  }
+}
+
+// 测验：检查选项是否被选中（多选题）
+const isQuizOptionSelected = (questionIndex, optionContent) => {
+  const selected = selectedQuizAnswers.value[questionIndex]
+  if (Array.isArray(selected)) {
+    return selected.includes(optionContent)
+  }
+  return false
+}
+
+// 测验：检查是否可以提交
+const canSubmitQuiz = computed(() => {
+  if (!currentQuestion.value || !currentQuestion.value.questions) {
+    return false
+  }
+  
+  const questions = currentQuestion.value.questions
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i]
+    if (q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') {
+      // 选择题必须至少选一个选项
+      const selected = selectedQuizAnswers.value[i]
+      if (!selected || (Array.isArray(selected) && selected.length === 0)) {
+        return false
+      }
+    } else if (q.type === 'ESSAY') {
+      // 问答题必须填写内容
+      const answer = quizEssayAnswers.value[i]
+      if (!answer || !answer.trim()) {
+        return false
+      }
+    }
+  }
+  return true
+})
+
+// 测验：提交所有子问题的答案
+const submitQuizAnswer = async () => {
+  if (!currentQuestion.value) {
+    console.error('[InteractionTab] Cannot submit quiz: currentQuestion is null')
+    alert('问题加载失败，请刷新页面')
+    return
+  }
+  
+  if (!userStore.currentUser || !userStore.currentUser.id) {
+    console.error('[InteractionTab] Cannot submit quiz: currentUser is null or missing id')
+    alert('用户信息未加载，请刷新页面重新登录')
+    return
+  }
+  
+  try {
+    const questions = currentQuestion.value.questions || []
+    const answers = []
+    
+    // 构建答案数组
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+      let answerContent = ''
+      
+      if (q.type === 'SINGLE_CHOICE' || q.type === 'MULTIPLE_CHOICE') {
+        const selected = selectedQuizAnswers.value[i]
+        if (Array.isArray(selected)) {
+          answerContent = selected.join(', ')
+        } else {
+          answerContent = selected || ''
+        }
+      } else if (q.type === 'ESSAY') {
+        answerContent = quizEssayAnswers.value[i] || ''
+      }
+      
+      if (answerContent) {
+        answers.push({
+          subQuestionIndex: i,
+          subQuestionType: q.type,
+          content: answerContent
+        })
+      }
+    }
+    
+    // 将所有答案合并为一个 JSON 字符串提交
+    const answerContent = JSON.stringify({
+      quizId: currentQuestion.value.id,
+      answers: answers
+    })
+    
+    const questionId = currentQuestion.value.id
+
+    // 前端防止重复提交
+    if (submittedQuestions.value[questionId]) {
+      alert('你已经提交过本题啦，不能重复提交～')
+      return
+    }
+
+    console.log('[InteractionTab] Submitting quiz answer:', {
+      questionId,
+      answers: answers
+    })
+    
+    await api.answer.submit({
+      questionId,
+      userId: userStore.currentUser.id,
+      content: answerContent
+    })
+    
+    console.log('[InteractionTab] Quiz answer submitted successfully')
+    submitted.value = true
+    submittedQuestions.value[questionId] = true
+    // 保存测验答案状态
+    if (!questionSelectedOptions.value[questionId]) {
+      questionSelectedOptions.value[questionId] = {}
+    }
+    questionSelectedOptions.value[questionId].quiz = {
+      answers: { ...selectedQuizAnswers.value },
+      essays: { ...quizEssayAnswers.value }
+    }
+    websocket.sendAnswerSubmit(props.classroomId, questionId)
+  } catch (error) {
+    console.error('Failed to submit quiz answer:', error)
+    alert('提交失败，请重试')
+  }
+}
+
+// 计算当前问题是否已提交
+const isQuestionSubmitted = computed(() => {
+  if (!currentQuestion.value) return false
+  return !!submittedQuestions.value[currentQuestion.value.id]
+})
+
 const resetAnswerState = () => {
   selectedOption.value = null
-  submitted.value = false
-  myAnswer.value = null
+  selectedOptions.value = []
+  // 注意：不重置 submitted.value，它应该由 isQuestionSubmitted 控制
   essayAnswer.value = ''
+  selectedQuizAnswers.value = {}
+  quizEssayAnswers.value = {}
 }
 
 // 将wordFrequency转换为外部API需要的keywords格式
@@ -1774,11 +2404,13 @@ const wordCloudKeywords = computed(() => {
 }
 
 .back-btn {
-  padding: 8px;
+  padding: 0;
   background: transparent;
+  border: none;
   color: #667eea;
   text-align: left;
   margin-bottom: 16px;
+  cursor: pointer;
 }
 
 .detail-header {
@@ -1918,6 +2550,117 @@ const wordCloudKeywords = computed(() => {
   margin-bottom: 16px;
 }
 
+.question-options-list {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.question-options-list h4 {
+  margin-bottom: 12px;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.quiz-subquestion-detail {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #f7f8ff;
+  border: 1px solid #e0e3ff;
+  border-radius: 10px;
+}
+
+.subquestion-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.subquestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subquestion-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.subquestion-type-tag {
+  padding: 4px 10px;
+  background: #667eea;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.subquestion-detail-content {
+  color: #333;
+  line-height: 1.5;
+  font-size: 15px;
+}
+
+.back-btn {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.back-btn:hover {
+  background: transparent;
+  color: #5568d3;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.option-item:hover {
+  border-color: #667eea;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.1);
+}
+
+.option-label {
+  font-weight: 600;
+  color: #667eea;
+  min-width: 24px;
+}
+
+.option-content {
+  flex: 1;
+  color: #333;
+}
+
+.correct-badge {
+  padding: 4px 10px;
+  background: #4caf50;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .choice-statistics {
   flex: 1;
   overflow-y: auto;
@@ -2002,6 +2745,11 @@ const wordCloudKeywords = computed(() => {
 
 .quiz-subquestion-stats {
   margin-top: 8px;
+}
+
+.quiz-subquestion-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .view-stats-btn {
@@ -2315,13 +3063,95 @@ const wordCloudKeywords = computed(() => {
   border-radius: 6px;
 }
 
-.choice-question, .essay-question {
+.choice-question, .essay-question, .quiz-question {
   padding: 16px;
 }
 
-.choice-question h3, .essay-question h3 {
+.choice-question h3, .essay-question h3, .quiz-question h3 {
   margin-bottom: 16px;
   color: #333;
+}
+
+.loading-question {
+  padding: 40px;
+  text-align: center;
+}
+
+.quiz-subquestions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.subquestion-card {
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.subquestion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.subquestion-number {
+  font-weight: 600;
+  color: #667eea;
+  font-size: 16px;
+}
+
+.subquestion-type {
+  padding: 4px 12px;
+  background: #667eea;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.subquestion-content {
+  margin-bottom: 12px;
+  color: #333;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.subquestion-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.subquestion-essay {
+  margin-top: 12px;
+}
+
+.subquestion-essay textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.submitted-message {
+  padding: 16px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 8px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.no-subquestions {
+  padding: 40px;
+  text-align: center;
 }
 
 .options {
@@ -2339,13 +3169,30 @@ const wordCloudKeywords = computed(() => {
   transition: all 0.2s;
 }
 
-.option:hover {
+.option:hover:not(.disabled) {
   border-color: #667eea;
 }
 
 .option.selected {
   border-color: #667eea;
   background: #f0f4ff;
+}
+
+.option.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: #f5f5f5;
+  pointer-events: none;
+}
+
+.option.disabled:hover {
+  border-color: #ddd;
+}
+
+.option.disabled.selected {
+  border-color: #999;
+  background: #e8e8e8;
+  opacity: 0.8;
 }
 
 .submit-btn {
@@ -2424,6 +3271,27 @@ const wordCloudKeywords = computed(() => {
 
 .essay-wordcloud {
   margin-top: 16px;
+}
+
+.my-essay-record {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f9f9ff;
+  border-radius: 6px;
+  border: 1px solid #e0e0ff;
+  color: #333;
+}
+
+.my-essay-record h4 {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #667eea;
+}
+
+.my-essay-record p {
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-size: 14px;
 }
 
 .question-nav {

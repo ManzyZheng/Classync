@@ -72,7 +72,7 @@
         <div class="quiz-questions-list">
           <div 
             v-for="(subQuestion, index) in formData.questions"
-            :key="`quiz-question-${index}-${subQuestion.type}-${subQuestion.content?.substring(0, 10) || 'empty'}`"
+            :key="`quiz-question-${index}`"
             class="quiz-question-item"
             :class="{ 'editing': editingQuizQuestionIndex === index }"
           >
