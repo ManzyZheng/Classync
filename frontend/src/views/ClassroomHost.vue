@@ -17,6 +17,14 @@
         </div>
       </div>
       <button 
+        class="qrcode-btn" 
+        @click="showQRCodeModal = true" 
+        title="显示二维码"
+      >
+        <span class="qrcode-icon">📱</span>
+        <span class="qrcode-text">二维码</span>
+      </button>
+      <button 
         class="show-code-toggle" 
         @click="toggleShowClassroomCode" 
         :class="{ active: showClassroomCode }"
@@ -81,6 +89,13 @@
         />
       </div>
     </div>
+    
+    <!-- 二维码弹窗 -->
+    <QRCodeModal 
+      v-if="showQRCodeModal && classroom?.classCode"
+      :class-code="classroom.classCode"
+      @close="showQRCodeModal = false"
+    />
   </div>
 </template>
 
@@ -93,6 +108,7 @@ import websocket from '../utils/websocket'
 import PdfThumbnails from '../components/PdfThumbnails.vue'
 import PdfViewer from '../components/PdfViewer.vue'
 import InteractionPanel from '../components/InteractionPanel.vue'
+import QRCodeModal from '../components/QRCodeModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -106,6 +122,7 @@ const totalPages = ref(0)
 const showClassroomCode = ref(false)  // 展示课堂码开关状态
 const pageLocks = ref({})  // 页面锁定状态 { pageNumber: isLocked }
 const lockFollowingPages = ref(false)  // 锁定后续页面开关状态
+const showQRCodeModal = ref(false)  // 二维码弹窗显示状态
 
 onMounted(async () => {
   await loadClassroom()
@@ -417,6 +434,37 @@ const formatTimeRange = (start, end) => {
 .info-separator {
   color: #ddd;
   font-size: 14px;
+}
+
+.qrcode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #f5f5f5;
+  color: #666;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.qrcode-btn:hover {
+  background: #ebebeb;
+  border-color: #d0d0d0;
+  color: #333;
+  transform: translateY(-1px);
+}
+
+.qrcode-icon {
+  font-size: 16px;
+}
+
+.qrcode-text {
+  font-size: 13px;
 }
 
 .show-code-toggle {

@@ -13,6 +13,7 @@
     "jieba-wasm": "^2.4.0",
     "pdfjs-dist": "^3.11.174",
     "pinia": "^2.1.7",
+    "qrcode": "^1.5.4",
     "sockjs-client": "^1.6.1",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5",

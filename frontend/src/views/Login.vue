@@ -48,11 +48,12 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import api from '../api'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const account = ref('')
@@ -80,7 +81,14 @@ const completeAuth = async () => {
     
     userStore.setUser(user)
     showAuthModal.value = false
-    router.push('/home')
+    
+    // 检查是否有重定向参数
+    const redirect = route.query.redirect
+    if (redirect) {
+      router.push(redirect)
+    } else {
+      router.push('/home')
+    }
   } catch (error) {
     console.error('Login failed:', error)
     alert('登录失败，请重试')

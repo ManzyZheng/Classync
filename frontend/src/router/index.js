@@ -4,6 +4,8 @@ import Home from '../views/Home.vue'
 import ClassroomHost from '../views/ClassroomHost.vue'
 import ClassroomViewer from '../views/ClassroomViewer.vue'
 import ClassroomDisplay from '../views/ClassroomDisplay.vue'
+import JoinClassroom from '../views/JoinClassroom.vue'
+import InteractionOnly from '../views/InteractionOnly.vue'
 
 const routes = [
   {
@@ -34,6 +36,16 @@ const routes = [
     path: '/classroom/display/:id',
     name: 'ClassroomDisplay',
     component: ClassroomDisplay
+  },
+  {
+    path: '/join/:classCode',
+    name: 'JoinClassroom',
+    component: JoinClassroom
+  },
+  {
+    path: '/interaction/:id',
+    name: 'InteractionOnly',
+    component: InteractionOnly
   }
 ]
 
