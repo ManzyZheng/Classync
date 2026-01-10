@@ -131,5 +131,58 @@ public class ClassroomController {
             return ResponseEntity.badRequest().build();
         }
     }
+    
+    /**
+     * 复制课堂文件路径信息
+     */
+    @GetMapping("/{id}/copy-file")
+    public ResponseEntity<Map<String, String>> getFileToCopy(@PathVariable Long id) {
+        String pdfPath = classroomService.copyClassroomFile(id);
+        if (pdfPath == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("pdfPath", pdfPath));
+    }
+    
+    /**
+     * 复制课堂的所有问题到新课堂
+     */
+    @PostMapping("/{sourceId}/copy-questions-to/{targetId}")
+    public ResponseEntity<Void> copyQuestionsToClassroom(
+            @PathVariable Long sourceId,
+            @PathVariable Long targetId) {
+        try {
+            classroomService.copyQuestionsToClassroom(sourceId, targetId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    /**
+     * 复制整个课堂
+     */
+    @PostMapping("/{sourceId}/copy")
+    public ResponseEntity<Classroom> copyEntireClassroom(
+            @PathVariable Long sourceId,
+            @RequestBody ClassroomRequest request) {
+        try {
+            Classroom copied = classroomService.copyEntireClassroom(
+                sourceId,
+                request.getName(),
+                request.getStartTime(),
+                request.getEndTime(),
+                request.getHostUserId()
+            );
+            if (copied == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(copied);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }
 

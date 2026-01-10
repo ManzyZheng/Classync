@@ -53,7 +53,11 @@ export default {
     setDisplayQuestion: (classroomId, questionId, mode) => api.post(`/classrooms/${classroomId}/display-question`, {
       questionId,
       mode
-    })
+    }),
+    // 复制相关
+    getFileToCopy: (id) => api.get(`/classrooms/${id}/copy-file`),
+    copyQuestionsToClassroom: (sourceId, targetId) => api.post(`/classrooms/${sourceId}/copy-questions-to/${targetId}`),
+    copyEntireClassroom: (sourceId, data) => api.post(`/classrooms/${sourceId}/copy`, data)
   },
 
   // 问题相关
@@ -64,7 +68,9 @@ export default {
     update: (id, data) => api.put(`/questions/${id}`, data),
     delete: (id) => api.delete(`/questions/${id}`),
     toggle: (id) => api.post(`/questions/${id}/toggle`),
-    finish: (id) => api.post(`/questions/${id}/finish`)
+    finish: (id) => api.post(`/questions/${id}/finish`),
+    // 复制相关
+    copyQuestion: (sourceId, targetClassroomId) => api.post(`/questions/${sourceId}/copy-to/${targetClassroomId}`)
   },
 
   // 答案相关

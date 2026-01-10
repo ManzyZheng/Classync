@@ -133,5 +133,43 @@ public class QuestionService {
             questionRepository.save(question);
         }
     }
+    
+    /**
+     * 复制单个问题（包括选项）到指定课堂
+     */
+    @Transactional
+    public Question copyQuestion(Long sourceQuestionId, Long targetClassroomId) {
+        Optional<Question> sourceOpt = questionRepository.findById(sourceQuestionId);
+        if (sourceOpt.isEmpty()) {
+            return null;
+        }
+        
+        Question sourceQuestion = sourceOpt.get();
+        
+        // 创建新问题
+        Question newQuestion = new Question();
+        newQuestion.setClassroomId(targetClassroomId);
+        newQuestion.setType(sourceQuestion.getType());
+        newQuestion.setContent(sourceQuestion.getContent());
+        newQuestion.setQuestions(sourceQuestion.getQuestions());
+        newQuestion.setIsOpen(false);
+        newQuestion.setIsFinished(false);
+        
+        Question savedQuestion = questionRepository.save(newQuestion);
+        
+        // 复制问题选项
+        List<QuestionOption> sourceOptions = questionOptionRepository.findByQuestionIdOrderByOptionOrderAsc(sourceQuestionId);
+        for (int i = 0; i < sourceOptions.size(); i++) {
+            QuestionOption sourceOption = sourceOptions.get(i);
+            QuestionOption newOption = new QuestionOption();
+            newOption.setQuestionId(savedQuestion.getId());
+            newOption.setContent(sourceOption.getContent());
+            newOption.setIsCorrect(sourceOption.getIsCorrect());
+            newOption.setOptionOrder(i);
+            questionOptionRepository.save(newOption);
+        }
+        
+        return savedQuestion;
+    }
 }
 
