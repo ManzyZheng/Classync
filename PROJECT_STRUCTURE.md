@@ -5,6 +5,14 @@
 ```
 Classync/
 ├── README.md                          # 项目总体说明文档
+├── QUICK_START.md                     # 快速启动指南
+├── PROJECT_STRUCTURE.md               # 项目结构说明（本文件）
+├── QUICK_REFERENCE.md                 # 快速参考卡片 (NEW)
+├── COPY_CLASSROOM_GUIDE.md            # 复制课堂使用指南 (NEW)
+├── COPY_CLASSROOM_TESTING.md          # 复制课堂测试指南 (NEW)
+├── IMPLEMENTATION_SUMMARY.md          # 复制课堂实现总结 (NEW)
+├── CHANGES.md                         # 变更清单 (NEW)
+├── COMPLETION_REPORT.md               # 完成报告 (NEW)
 ├── .gitignore                         # Git 忽略配置
 │
 ├── backend/                           # Spring Boot 后端

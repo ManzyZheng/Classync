@@ -132,4 +132,18 @@ public class QuestionController {
         questionService.finishQuestion(id);
         return ResponseEntity.ok().build();
     }
+    
+    /**
+     * 复制单个问题到指定课堂
+     */
+    @PostMapping("/{sourceId}/copy-to/{targetClassroomId}")
+    public ResponseEntity<Question> copyQuestion(
+            @PathVariable Long sourceId,
+            @PathVariable Long targetClassroomId) {
+        Question copied = questionService.copyQuestion(sourceId, targetClassroomId);
+        if (copied == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(copied);
+    }
 }
