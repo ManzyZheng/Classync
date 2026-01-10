@@ -43,6 +43,7 @@ export default {
     recordParticipant: (classroomId, userId) => api.post(`/classrooms/${classroomId}/participant/${userId}`),
     removeParticipant: (classroomId, userId) => api.delete(`/classrooms/${classroomId}/participant/${userId}`),
     delete: (id) => api.delete(`/classrooms/${id}`),
+    updateTime: (id, data) => api.put(`/classrooms/${id}/time`, data),
     uploadPdf: (id, file) => {
       const formData = new FormData()
       formData.append('file', file)

@@ -46,26 +46,28 @@
       <div v-else class="question-detail">
         <button class="back-btn" @click="selectedQuestion = null">← 返回</button>
         
-        <div class="detail-header">
-          <h3>{{ getQuestionTypeName(selectedQuestion.type) }}</h3>
-          <div class="status-control">
-            <span>{{ selectedQuestion.isFinished ? '已结束' : '统计进行中' }}</span>
-            <div class="timer-display">
-              <svg class="timer-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-              <span class="timer-text">
-                <span v-if="selectedQuestion.isOpen && questionTimers[selectedQuestion.id]">
-                  {{ formatTimer(questionTimers[selectedQuestion.id]) }}
+        <!-- 可滚动内容区域 -->
+        <div class="question-detail-scrollable">
+          <div class="detail-header">
+            <h3>{{ getQuestionTypeName(selectedQuestion.type) }}</h3>
+            <div class="status-control">
+              <span>{{ selectedQuestion.isFinished ? '已结束' : '统计进行中' }}</span>
+              <div class="timer-display">
+                <svg class="timer-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="timer-text">
+                  <span v-if="selectedQuestion.isOpen && questionTimers[selectedQuestion.id]">
+                    {{ formatTimer(questionTimers[selectedQuestion.id]) }}
+                  </span>
+                  <span v-else class="timer-not-started">未开始计时</span>
                 </span>
-                <span v-else class="timer-not-started">未开始计时</span>
-              </span>
+              </div>
             </div>
           </div>
-        </div>
-        
-      <div class="question-content-box">
+          
+        <div class="question-content-box">
         <p>{{ selectedQuestion.content }}</p>
       </div>
       
@@ -229,50 +231,55 @@
         <div v-if="selectedQuestion.type === 'ESSAY'" class="essay-wordcloud">
           <canvas ref="wordcloudCanvas" width="400" height="300"></canvas>
         </div>
+        </div>
+        <!-- 结束可滚动内容区域 -->
         
-        <!-- 放映页展示按钮 -->
-        <div class="display-actions">
-          <span class="display-label">放映页：</span>
+        <!-- 固定在底部的按钮区域 -->
+        <div class="question-detail-footer">
+          <!-- 放映页展示按钮 -->
+          <div class="display-actions">
+            <span class="display-label">放映页：</span>
+            <button 
+              class="display-btn display-question-only"
+              @click="displayQuestionOnPresent('QUESTION_ONLY')"
+              :disabled="!selectedQuestion.isOpen"
+              title="在放映页展示问题（不含结果）"
+            >
+              显示问题
+            </button>
+            <button 
+              class="display-btn display-show-results"
+              @click="displayQuestionOnPresent('SHOW_RESULTS')"
+              :disabled="!selectedQuestion.isOpen"
+              title="在放映页展示问题和实时结果"
+            >
+              实时统计
+            </button>
+            <button 
+              class="display-btn display-show-answer"
+              @click="displayQuestionOnPresent('SHOW_ANSWER')"
+              :disabled="!selectedQuestion.isOpen"
+              title="在放映页显示正确答案"
+            >
+              显示答案
+            </button>
+            <button 
+              class="display-btn close-display"
+              @click="closeQuestionDisplay"
+              title="关闭放映页问题展示，返回PPT"
+            >
+              关闭展示
+            </button>
+          </div>
+          
           <button 
-            class="display-btn display-question-only"
-            @click="displayQuestionOnPresent('QUESTION_ONLY')"
-            :disabled="!selectedQuestion.isOpen"
-            title="在放映页展示问题（不含结果）"
+            v-if="selectedQuestion.isOpen && !selectedQuestion.isFinished"
+            class="finish-btn"
+            @click="finishQuestion"
           >
-            显示问题
-          </button>
-          <button 
-            class="display-btn display-show-results"
-            @click="displayQuestionOnPresent('SHOW_RESULTS')"
-            :disabled="!selectedQuestion.isOpen"
-            title="在放映页展示问题和实时结果"
-          >
-            显示结果
-          </button>
-          <button 
-            class="display-btn display-show-answer"
-            @click="displayQuestionOnPresent('SHOW_ANSWER')"
-            :disabled="!selectedQuestion.isOpen"
-            title="在放映页显示正确答案"
-          >
-            显示答案
-          </button>
-          <button 
-            class="display-btn close-display"
-            @click="closeQuestionDisplay"
-            title="关闭放映页问题展示，返回PPT"
-          >
-            关闭展示
+            结束统计并展示结果
           </button>
         </div>
-        
-        <button 
-          v-if="selectedQuestion.isOpen && !selectedQuestion.isFinished"
-          class="finish-btn"
-          @click="finishQuestion"
-        >
-          结束统计并展示结果
-        </button>
       </div>
     </div>
     
@@ -2711,6 +2718,20 @@ const wordCloudKeywords = computed(() => {
   flex-direction: column;
 }
 
+.question-detail-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 16px;
+}
+
+.question-detail-footer {
+  flex-shrink: 0;
+  padding: 16px 0 0 0;
+  border-top: 1px solid #e0e0e0;
+  background: white;
+}
+
 .back-btn {
   padding: 0;
   background: transparent;
@@ -3398,6 +3419,18 @@ const wordCloudKeywords = computed(() => {
   color: white;
   border-radius: 4px;
   margin-top: 16px;
+  width: 100%;
+  display: block;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.finish-btn:hover {
+  background: #5568d3;
 }
 
 /* 放映页展示按钮 */

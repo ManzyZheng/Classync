@@ -76,6 +76,36 @@ public class ClassroomController {
         return ResponseEntity.ok().build();
     }
     
+    @PutMapping("/{id}/time")
+    public ResponseEntity<Classroom> updateClassroomTime(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request) {
+        try {
+            Classroom classroom = classroomService.getClassroomById(id).orElse(null);
+            if (classroom == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            String startTime = request.get("startTime");
+            String endTime = request.get("endTime");
+            
+            if (startTime != null) {
+                classroom.setStartTime(java.time.LocalDateTime.parse(startTime, 
+                    java.time.format.DateTimeFormatter.ISO_DATE_TIME));
+            }
+            if (endTime != null) {
+                classroom.setEndTime(java.time.LocalDateTime.parse(endTime, 
+                    java.time.format.DateTimeFormatter.ISO_DATE_TIME));
+            }
+            
+            Classroom updated = classroomService.updateClassroom(classroom);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
     @PostMapping("/{id}/upload")
     public ResponseEntity<Classroom> uploadPdf(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
         try {
