@@ -10,8 +10,157 @@
           </div>
         </div>
 
-        <!-- 选项列表 -->
-        <div v-if="question?.type !== 'ESSAY'" class="options-container">
+        <!-- 测验子问题列表 -->
+        <div v-if="question?.type === 'QUIZ' && subQuestions.length > 0" class="quiz-wrapper">
+          <!-- 返回按钮（当选中某个子问题时显示） -->
+          <div v-if="selectedSubQuestionIndex !== null" class="back-to-list-btn-container">
+            <button class="back-to-list-btn" @click="selectedSubQuestionIndex = null">
+              ← 返回问题列表
+            </button>
+          </div>
+          
+          <div :class="['quiz-subquestions-container', { 'single-view': selectedSubQuestionIndex !== null }]">
+          <!-- 显示所有子问题（当没有选中特定子问题时） -->
+          <template v-if="selectedSubQuestionIndex === null">
+            <div 
+              v-for="(subQuestion, subIndex) in subQuestions"
+              :key="subIndex"
+              class="quiz-subquestion-card"
+            >
+              <div class="subquestion-header">
+                <span class="subquestion-number">问题 {{ subIndex + 1 }}</span>
+                <span class="subquestion-type-badge">{{ getQuestionTypeText(subQuestion.type) }}</span>
+              </div>
+              <div class="subquestion-content-text">{{ subQuestion.content }}</div>
+              
+              <!-- 选择题子问题的选项和统计 -->
+              <div v-if="(subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE') && subQuestion.options && subQuestion.options.length > 0" class="subquestion-options-container">
+                <div 
+                  v-for="(option, optIndex) in subQuestion.options"
+                  :key="optIndex"
+                  class="option-item"
+                  :class="{ 'has-result': showResults }"
+                >
+                  <div class="option-content">
+                    <span class="option-label">{{ getOptionLabel(optIndex) }}</span>
+                    <span class="option-text">{{ option.content }}</span>
+                    <span v-if="showAnswer && option.isCorrect" class="correct-mark">✓</span>
+                  </div>
+                  
+                  <!-- 结果条形图 -->
+                  <div v-if="showResults && subQuestionStatistics[subIndex]" class="option-result">
+                    <div class="result-bar-container">
+                      <div 
+                        class="result-bar" 
+                        :style="{ width: getSubQuestionPercentage(subIndex, option.content) + '%' }"
+                        :class="{ 'is-correct': showAnswer && option.isCorrect }"
+                      >
+                      </div>
+                    </div>
+                    <div class="result-stats">
+                      <span class="result-count">{{ getSubQuestionCount(subIndex, option.content) }} 人</span>
+                      <span class="result-percentage">{{ getSubQuestionPercentage(subIndex, option.content) }}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 问答题子问题 -->
+              <div v-else-if="subQuestion.type === 'ESSAY'" class="subquestion-essay-section">
+                <div v-if="showAnswer && subQuestionWordFrequency[subIndex] && subQuestionWordFrequency[subIndex].length > 0" class="essay-wordcloud">
+                  <div class="wordcloud-container">
+                    <span 
+                      v-for="(word, wordIndex) in subQuestionWordFrequency[subIndex]" 
+                      :key="wordIndex"
+                      class="word-tag"
+                      :style="getWordStyleForSubQuestion(word, wordIndex, subIndex)"
+                    >
+                      {{ word.word }}
+                    </span>
+                  </div>
+                  <p class="essay-count">基于 {{ getSubQuestionEssayCount(subIndex) }} 份答案</p>
+                </div>
+                <div v-else class="essay-hint">
+                  <p>简答题正在收集中...</p>
+                  <p v-if="showResults" class="essay-count">已收到 {{ getSubQuestionEssayCount(subIndex) }} 份答案</p>
+                </div>
+              </div>
+              
+              <!-- 查看详情按钮 -->
+              <div v-if="showResults" class="subquestion-actions">
+                <button class="view-detail-btn" @click="selectedSubQuestionIndex = subIndex">
+                  单独显示
+                </button>
+              </div>
+            </div>
+          </template>
+          
+          <!-- 显示单个子问题详情（当选中某个子问题时） -->
+          <div v-else-if="selectedSubQuestionIndex !== null && subQuestions[selectedSubQuestionIndex]" class="quiz-subquestion-card single-subquestion-view">
+            <div class="subquestion-header">
+              <span class="subquestion-number">问题 {{ selectedSubQuestionIndex + 1 }}</span>
+              <span class="subquestion-type-badge">{{ getQuestionTypeText(subQuestions[selectedSubQuestionIndex].type) }}</span>
+            </div>
+            <div class="subquestion-content-text">{{ subQuestions[selectedSubQuestionIndex].content }}</div>
+            
+            <!-- 选择题子问题的选项和统计 -->
+            <div v-if="(subQuestions[selectedSubQuestionIndex].type === 'SINGLE_CHOICE' || subQuestions[selectedSubQuestionIndex].type === 'MULTIPLE_CHOICE' || subQuestions[selectedSubQuestionIndex].type === 'CHOICE') && subQuestions[selectedSubQuestionIndex].options && subQuestions[selectedSubQuestionIndex].options.length > 0" class="subquestion-options-container">
+              <div 
+                v-for="(option, optIndex) in subQuestions[selectedSubQuestionIndex].options"
+                :key="optIndex"
+                class="option-item"
+                :class="{ 'has-result': showResults }"
+              >
+                <div class="option-content">
+                  <span class="option-label">{{ getOptionLabel(optIndex) }}</span>
+                  <span class="option-text">{{ option.content }}</span>
+                  <span v-if="showAnswer && option.isCorrect" class="correct-mark">✓</span>
+                </div>
+                
+                <!-- 结果条形图 -->
+                <div v-if="showResults && subQuestionStatistics[selectedSubQuestionIndex]" class="option-result">
+                  <div class="result-bar-container">
+                    <div 
+                      class="result-bar" 
+                      :style="{ width: getSubQuestionPercentage(selectedSubQuestionIndex, option.content) + '%' }"
+                      :class="{ 'is-correct': showAnswer && option.isCorrect }"
+                    >
+                    </div>
+                  </div>
+                  <div class="result-stats">
+                    <span class="result-count">{{ getSubQuestionCount(selectedSubQuestionIndex, option.content) }} 人</span>
+                    <span class="result-percentage">{{ getSubQuestionPercentage(selectedSubQuestionIndex, option.content) }}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 问答题子问题 -->
+            <div v-else-if="subQuestions[selectedSubQuestionIndex].type === 'ESSAY'" class="subquestion-essay-section">
+              <div v-if="showAnswer && subQuestionWordFrequency[selectedSubQuestionIndex] && subQuestionWordFrequency[selectedSubQuestionIndex].length > 0" class="essay-wordcloud">
+                <div class="wordcloud-container">
+                  <span 
+                    v-for="(word, wordIndex) in subQuestionWordFrequency[selectedSubQuestionIndex]" 
+                    :key="wordIndex"
+                    class="word-tag"
+                    :style="getWordStyleForSubQuestion(word, wordIndex, selectedSubQuestionIndex)"
+                  >
+                    {{ word.word }}
+                  </span>
+                </div>
+                <p class="essay-count">基于 {{ getSubQuestionEssayCount(selectedSubQuestionIndex) }} 份答案</p>
+              </div>
+              <div v-else class="essay-hint">
+                <p>简答题正在收集中...</p>
+                <p v-if="showResults" class="essay-count">已收到 {{ getSubQuestionEssayCount(selectedSubQuestionIndex) }} 份答案</p>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+
+        <!-- 选项列表（普通问题） -->
+        <div v-else-if="question?.type !== 'ESSAY' && question?.type !== 'QUIZ'" class="options-container">
           <div 
             v-for="(option, index) in options" 
             :key="option.id" 
@@ -42,7 +191,7 @@
         </div>
 
         <!-- 简答题提示 -->
-        <div v-else class="essay-section">
+        <div v-else-if="question?.type === 'ESSAY'" class="essay-section">
           <!-- 显示答案模式：展示词云 -->
           <div v-if="showAnswer && wordFrequency.length > 0" class="essay-wordcloud">
             <div class="wordcloud-container">
@@ -102,6 +251,10 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'QUESTION_ONLY'  // QUESTION_ONLY, SHOW_RESULTS, SHOW_ANSWER
+  },
+  subQuestionIndex: {
+    type: Number,
+    default: null  // 子问题索引，如果提供则只显示该子问题
   }
 })
 
@@ -111,6 +264,13 @@ const statistics = ref(null)
 const essayAnswers = ref([])
 const wordFrequency = ref([])
 const wordPositions = ref([])
+// 测验相关
+const subQuestions = ref([])
+const subQuestionStatistics = ref({}) // { subIndex: statistics[] }
+const subQuestionEssayAnswers = ref({}) // { subIndex: answers[] }
+const subQuestionWordFrequency = ref({}) // { subIndex: wordFrequency[] }
+const subQuestionWordPositions = ref({}) // { subIndex: wordPositions[] }
+const selectedSubQuestionIndex = ref(null) // 当前选中的子问题索引，null 表示显示所有子问题
 
 const showResults = computed(() => props.mode === 'SHOW_RESULTS' || props.mode === 'SHOW_ANSWER')
 const showAnswer = computed(() => props.mode === 'SHOW_ANSWER')
@@ -122,7 +282,8 @@ const getQuestionTypeText = (type) => {
     'MULTIPLE_CHOICE': '多选题',
     'TRUE_FALSE': '判断题',
     'ESSAY': '简答题',
-    'QUIZ': '测验'
+    'QUIZ': '测验',
+    'CHOICE': '选择题' // 兼容旧数据
   }
   return typeMap[type] || '互动问题'
 }
@@ -152,6 +313,129 @@ const getWordStyleForDisplay = (word, index) => {
   return getWordStyle(word, index, wordFrequency.value, wordPositions.value, 1000, 600)
 }
 
+// 获取子问题的词云样式
+const getWordStyleForSubQuestion = (word, index, subIndex) => {
+  const freq = subQuestionWordFrequency.value[subIndex] || []
+  const pos = subQuestionWordPositions.value[subIndex] || []
+  return getWordStyle(word, index, freq, pos, 1000, 400)
+}
+
+// 获取子问题的统计计数
+const getSubQuestionCount = (subIndex, optionContent) => {
+  const stats = subQuestionStatistics.value[subIndex]
+  if (!stats || !Array.isArray(stats)) return 0
+  const stat = stats.find(s => s.optionContent === optionContent)
+  return stat ? stat.count : 0
+}
+
+// 获取子问题的统计百分比
+const getSubQuestionPercentage = (subIndex, optionContent) => {
+  const stats = subQuestionStatistics.value[subIndex]
+  if (!stats || !Array.isArray(stats)) return 0
+  const stat = stats.find(s => s.optionContent === optionContent)
+  return stat ? Math.round(stat.percentage) : 0
+}
+
+// 获取子问题的问答题答案数量
+const getSubQuestionEssayCount = (subIndex) => {
+  return subQuestionEssayAnswers.value[subIndex]?.length || 0
+}
+
+// 加载测验子问题的统计数据
+const loadQuizSubQuestionStatistics = async (quizId, subIndex, subQuestion) => {
+  try {
+    // 获取整张测验题的所有回答
+    const allAnswersResponse = await fetch(`/api/answers/question/${quizId}`)
+    const allAnswers = await allAnswersResponse.json()
+    
+    if (subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE') {
+      const optionCountMap = {}
+      let totalSelections = 0
+      
+      allAnswers.forEach(ans => {
+        try {
+          const payload = JSON.parse(ans.content)
+          if (!payload.answers || !Array.isArray(payload.answers)) return
+          payload.answers
+            .filter(a => a.subQuestionIndex === subIndex)
+            .forEach(a => {
+              if (!a.content) return
+              const parts = subQuestion.type === 'MULTIPLE_CHOICE'
+                ? a.content.split(',').map(p => p.trim()).filter(Boolean)
+                : [a.content.trim()]
+              parts.forEach(p => {
+                optionCountMap[p] = (optionCountMap[p] || 0) + 1
+                totalSelections++
+              })
+            })
+        } catch (e) {
+          console.warn('[QuestionOverlay] Failed to parse quiz answer JSON:', e)
+        }
+      })
+      
+      const opts = subQuestion.options || []
+      subQuestionStatistics.value[subIndex] = opts.map(opt => {
+        const count = optionCountMap[opt.content] || 0
+        return {
+          optionContent: opt.content,
+          count,
+          percentage: totalSelections > 0 ? (count * 100.0 / totalSelections) : 0,
+          isCorrect: !!opt.isCorrect
+        }
+      })
+    } else if (subQuestion.type === 'ESSAY') {
+      const subAnswers = []
+      allAnswers.forEach(ans => {
+        try {
+          const payload = JSON.parse(ans.content)
+          if (!payload.answers || !Array.isArray(payload.answers)) return
+          payload.answers
+            .filter(a => a.subQuestionIndex === subIndex && a.content)
+            .forEach(a => {
+              subAnswers.push({
+                content: a.content,
+                createdAt: ans.createdAt
+              })
+            })
+        } catch (e) {
+          console.warn('[QuestionOverlay] Failed to parse quiz answer JSON for essay:', e)
+        }
+      })
+      
+      subQuestionEssayAnswers.value[subIndex] = subAnswers
+      
+      // 如果是显示答案模式，生成词云
+      if (showAnswer.value && subAnswers.length > 0) {
+        try {
+          const freq = await generateWordCloud(subAnswers)
+          subQuestionWordFrequency.value[subIndex] = freq
+          if (freq.length > 0) {
+            const pos = await calculateWordPositions(freq, 1000, 400)
+            subQuestionWordPositions.value[subIndex] = pos
+          }
+        } catch (error) {
+          console.error('[QuestionOverlay] Failed to generate word cloud for sub-question:', error)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[QuestionOverlay] Failed to load quiz sub-question statistics:', error)
+  }
+}
+
+// 监听 subQuestionIndex 变化，自动设置选中状态
+watch(() => props.subQuestionIndex, (newIndex) => {
+  if (question.value?.type === 'QUIZ') {
+    if (newIndex !== null && newIndex !== undefined) {
+      selectedSubQuestionIndex.value = newIndex
+      console.log('[QuestionOverlay] Sub-question index changed to:', newIndex)
+    } else {
+      selectedSubQuestionIndex.value = null
+      console.log('[QuestionOverlay] Sub-question index cleared, showing all sub-questions')
+    }
+  }
+}, { immediate: true })
+
 // 监听 questionId 变化，加载问题数据
 watch(() => props.questionId, async (newId) => {
   if (!newId) {
@@ -161,6 +445,13 @@ watch(() => props.questionId, async (newId) => {
     essayAnswers.value = []
     wordFrequency.value = []
     wordPositions.value = []
+    subQuestions.value = []
+    subQuestionStatistics.value = {}
+    subQuestionEssayAnswers.value = {}
+    subQuestionWordFrequency.value = {}
+    subQuestionWordPositions.value = {}
+    selectedSubQuestionIndex.value = null
+    subQuestions.value = []
     return
   }
 
@@ -182,11 +473,43 @@ watch(() => props.questionId, async (newId) => {
     }
     options.value = data.options || []
     
+    // 解析测验子问题
+    if (question.value.type === 'QUIZ') {
+      let questionsData = data.questions
+      if (typeof questionsData === 'string') {
+        try {
+          questionsData = JSON.parse(questionsData)
+        } catch (e) {
+          console.error('[QuestionOverlay] Failed to parse questions JSON:', e)
+          questionsData = []
+        }
+      }
+      subQuestions.value = Array.isArray(questionsData) ? questionsData : []
+      console.log('[QuestionOverlay] Quiz sub-questions loaded:', subQuestions.value.length)
+      
+      // 根据 props.subQuestionIndex 设置选中状态
+      if (props.subQuestionIndex !== null && props.subQuestionIndex !== undefined) {
+        selectedSubQuestionIndex.value = props.subQuestionIndex
+        console.log('[QuestionOverlay] Auto-selected sub-question index:', props.subQuestionIndex)
+      } else {
+        // 如果没有提供子问题索引，确保显示所有子问题
+        selectedSubQuestionIndex.value = null
+        console.log('[QuestionOverlay] No sub-question index provided, showing all sub-questions')
+      }
+      
+      // 如果需要显示结果，加载每个子问题的统计数据
+      if (showResults.value) {
+        for (let i = 0; i < subQuestions.value.length; i++) {
+          await loadQuizSubQuestionStatistics(newId, i, subQuestions.value[i])
+        }
+      }
+    }
+    
     console.log('[QuestionOverlay] Question content:', question.value?.content)
     console.log('[QuestionOverlay] Options:', options.value)
     
-    // 如果需要显示结果，加载统计数据
-    if (showResults.value && question.value.type !== 'ESSAY') {
+    // 如果需要显示结果，加载统计数据（普通问题）
+    if (showResults.value && question.value.type !== 'ESSAY' && question.value.type !== 'QUIZ') {
       const statsResponse = await fetch(`/api/answers/statistics/${newId}`)
       statistics.value = await statsResponse.json()
       console.log('[QuestionOverlay] Statistics:', statistics.value)
@@ -221,7 +544,12 @@ watch(() => props.mode, async (newMode) => {
   
   if ((newMode === 'SHOW_RESULTS' || newMode === 'SHOW_ANSWER') && props.questionId) {
     try {
-      if (question.value?.type !== 'ESSAY') {
+      if (question.value?.type === 'QUIZ') {
+        // 测验：加载每个子问题的统计数据
+        for (let i = 0; i < subQuestions.value.length; i++) {
+          await loadQuizSubQuestionStatistics(props.questionId, i, subQuestions.value[i])
+        }
+      } else if (question.value?.type !== 'ESSAY') {
         const statsResponse = await fetch(`/api/answers/statistics/${props.questionId}`)
         statistics.value = await statsResponse.json()
       } else {
@@ -245,6 +573,14 @@ watch(() => props.mode, async (newMode) => {
     essayAnswers.value = []
     wordFrequency.value = []
     wordPositions.value = []
+    subQuestionStatistics.value = {}
+    subQuestionEssayAnswers.value = {}
+    subQuestionWordFrequency.value = {}
+    subQuestionWordPositions.value = {}
+    // 只有在没有提供子问题索引时才重置，否则保持选中状态
+    if (props.subQuestionIndex === null || props.subQuestionIndex === undefined) {
+      selectedSubQuestionIndex.value = null
+    }
   }
 })
 
@@ -284,8 +620,19 @@ const handleAnswerSubmitted = async (payload) => {
     return
   }
   
+  // 如果是测验且正在显示结果，重新加载所有子问题的统计数据
+  if (question.value?.type === 'QUIZ' && showResults.value) {
+    try {
+      for (let i = 0; i < subQuestions.value.length; i++) {
+        await loadQuizSubQuestionStatistics(props.questionId, i, subQuestions.value[i])
+      }
+      console.log('[QuestionOverlay] Real-time: Quiz sub-question statistics updated')
+    } catch (error) {
+      console.error('[QuestionOverlay] Failed to reload quiz statistics:', error)
+    }
+  }
   // 如果是简答题且正在显示结果或答案，重新加载答案
-  if (question.value?.type === 'ESSAY' && showResults.value) {
+  else if (question.value?.type === 'ESSAY' && showResults.value) {
     try {
       const answersResponse = await fetch(`/api/answers/question/${props.questionId}`)
       essayAnswers.value = await answersResponse.json()
@@ -301,7 +648,7 @@ const handleAnswerSubmitted = async (payload) => {
     }
   }
   // 如果是选择题且正在显示结果，更新统计数据
-  else if (question.value?.type !== 'ESSAY' && showResults.value) {
+  else if (question.value?.type !== 'ESSAY' && question.value?.type !== 'QUIZ' && showResults.value) {
     try {
       const statsResponse = await fetch(`/api/answers/statistics/${props.questionId}`)
       statistics.value = await statsResponse.json()
@@ -335,21 +682,22 @@ onUnmounted(() => {
   background: #ffffff;
   z-index: 9999;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 15px;
+  overflow-y: auto;
 }
 
 .overlay-container {
-  max-width: 1200px;
+  max-width: 98vw;
   width: 100%;
   background: #ffffff;
   border-radius: 24px;
-  padding: 40px;
+  padding: 25px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   animation: slideUp 0.4s ease-out;
-  max-height: 90vh;
-  overflow-y: auto;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 @keyframes slideUp {
@@ -365,17 +713,17 @@ onUnmounted(() => {
 
 .question-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   border-bottom: 2px solid #e0e0e0;
-  padding-bottom: 20px;
+  padding-bottom: 16px;
 }
 
 .question-title {
-  font-size: clamp(24px, 5vw, 42px);
+  font-size: clamp(20px, 4vw, 36px);
   font-weight: 700;
   color: #2c3e50;
-  margin-bottom: 16px;
-  line-height: 1.4;
+  margin-bottom: 12px;
+  line-height: 1.3;
   word-wrap: break-word;
 }
 
@@ -399,7 +747,7 @@ onUnmounted(() => {
 .option-item {
   background: #f8f9fa;
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   transition: all 0.3s ease;
 }
 
@@ -412,7 +760,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .option-label {
@@ -435,6 +783,164 @@ onUnmounted(() => {
   font-weight: 500;
   word-wrap: break-word;
   flex: 1;
+}
+
+.correct-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #22c55e;
+  color: white;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 700;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.quiz-subquestions-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+/* 响应式：小屏幕时使用单列 */
+@media (max-width: 1000px) {
+  .quiz-subquestions-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 当选中单个子问题时，使用单列布局并居中 */
+.quiz-subquestions-container.single-view {
+  grid-template-columns: 1fr;
+  max-width: 90%;
+  margin: 0 auto;
+}
+
+.quiz-subquestion-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  border: 2px solid #e0e0e0;
+  transition: all 0.3s ease;
+  min-width: 0; /* 防止内容溢出 */
+}
+
+.quiz-subquestion-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.subquestion-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.subquestion-number {
+  font-size: clamp(18px, 3vw, 24px);
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.subquestion-type-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #667eea;
+  color: white;
+  border-radius: 12px;
+  font-size: clamp(12px, 1.8vw, 16px);
+  font-weight: 600;
+}
+
+.subquestion-content-text {
+  font-size: clamp(16px, 2.5vw, 22px);
+  color: #2c3e50;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  word-wrap: break-word;
+}
+
+.subquestion-options-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.subquestion-essay-section {
+  margin-top: 12px;
+}
+
+.subquestion-actions {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.view-detail-btn {
+  padding: 12px 24px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: clamp(14px, 2vw, 18px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.view-detail-btn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.view-detail-btn:active {
+  transform: translateY(0);
+}
+
+.quiz-wrapper {
+  width: 100%;
+}
+
+.back-to-list-btn-container {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.back-to-list-btn {
+  padding: 10px 20px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: clamp(14px, 2vw, 18px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.back-to-list-btn:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.back-to-list-btn:active {
+  transform: translateY(0);
+}
+
+.single-subquestion-view {
+  max-width: 90%;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .option-result {

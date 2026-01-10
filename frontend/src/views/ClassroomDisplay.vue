@@ -20,6 +20,7 @@
       :visible="showQuestionOverlay"
       :question-id="displayQuestionId"
       :mode="displayQuestionMode"
+      :sub-question-index="displaySubQuestionIndex"
     />
     
     <!-- 课堂码和二维码浮层 -->
@@ -59,6 +60,7 @@ const qrcodeCanvas = ref(null)  // 二维码 canvas 引用
 const showQuestionOverlay = ref(false)
 const displayQuestionId = ref(null)
 const displayQuestionMode = ref('QUESTION_ONLY')
+const displaySubQuestionIndex = ref(null)
 
 onMounted(async () => {
   await loadClassroom()
@@ -149,12 +151,14 @@ const connectWebSocket = async () => {
         if (payload.questionId) {
           displayQuestionId.value = payload.questionId
           displayQuestionMode.value = payload.mode || 'QUESTION_ONLY'
+          displaySubQuestionIndex.value = payload.subQuestionIndex ?? null
           showQuestionOverlay.value = true
         } else {
           // 清除问题展示
           showQuestionOverlay.value = false
           displayQuestionId.value = null
           displayQuestionMode.value = 'QUESTION_ONLY'
+          displaySubQuestionIndex.value = null
         }
       }
     })

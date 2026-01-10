@@ -239,12 +239,13 @@ class WebSocketService {
   }
   
   // 发送问题展示消息
-  sendDisplayQuestion(classroomId, questionId, mode) {
+  sendDisplayQuestion(classroomId, questionId, mode, subQuestionIndex = null) {
     this.send('/app/display_question', {
       classroomId,
       data: {
         questionId,
-        mode
+        mode,
+        subQuestionIndex
       }
     })
   }

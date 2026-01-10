@@ -146,6 +146,38 @@
           <div class="subquestion-detail-content">
             {{ viewingSubQuestion.content }}
           </div>
+          
+          <!-- 选择题子问题的选项和统计 -->
+          <div v-if="(viewingSubQuestion.type === 'SINGLE_CHOICE' || viewingSubQuestion.type === 'MULTIPLE_CHOICE' || viewingSubQuestion.type === 'CHOICE') && viewingSubQuestion.options && viewingSubQuestion.options.length > 0" class="question-options-list">
+            <h4>选项与实时统计</h4>
+            <div class="options-list">
+              <div 
+                v-for="(option, index) in viewingSubQuestion.options"
+                :key="option.id || index"
+                class="option-item-with-stats"
+              >
+                <!-- 选项标题 -->
+                <div class="option-title">
+                  <span class="option-label-text">{{ String.fromCharCode(65 + index) }}</span>
+                  <span class="option-divider">-</span>
+                  <span class="option-content-text">{{ option.content }}</span>
+                  <span v-if="option.isCorrect" class="correct-indicator">✓</span>
+                </div>
+                
+                <!-- 条形图和百分比 -->
+                <div class="stats-row">
+                  <div class="stats-bar-wrapper">
+                    <div 
+                      class="stats-bar-fill" 
+                      :style="{ width: getQuizSubQuestionStatPercentage(option.content) + '%' }"
+                      :class="{ 'is-correct': option.isCorrect }"
+                    ></div>
+                  </div>
+                  <span class="stats-percentage-text">{{ getQuizSubQuestionStatPercentage(option.content) }}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div v-if="selectedQuestion.type === 'ESSAY' || (selectedQuestion.type === 'QUIZ' && viewingSubQuestion && viewingSubQuestion.type === 'ESSAY')" class="essay-statistics">
@@ -1126,13 +1158,23 @@ const loadQuestionDetail = async (questionId) => {
 
 // 查看测验子问题的统计（在主持人端）
 const viewSubQuestionStats = async (subQuestion, index) => {
-  viewingSubQuestion.value = { ...subQuestion, index }
+  // 确保从 selectedQuestion 中获取完整的子问题信息（包括选项）
+  const fullSubQuestion = selectedQuestion.value?.questions?.[index] || subQuestion
+  viewingSubQuestion.value = { ...fullSubQuestion, index }
   statistics.value = []
   essayAnswers.value = []
   wordFrequency.value = []
 
   if (!selectedQuestion.value) return
   const quizId = selectedQuestion.value.id
+  
+  console.log('[Quiz] Viewing sub-question stats:', {
+    index,
+    type: fullSubQuestion.type,
+    content: fullSubQuestion.content,
+    optionsCount: fullSubQuestion.options ? fullSubQuestion.options.length : 0,
+    options: fullSubQuestion.options
+  })
 
   try {
     // 获取整张测验题的所有回答（content 为 JSON）
@@ -1140,7 +1182,7 @@ const viewSubQuestionStats = async (subQuestion, index) => {
     console.log('[Quiz] Loaded quiz answers for sub-question stats:', allAnswers.length)
 
     // 选择题子问题统计
-    if (subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE') {
+    if (fullSubQuestion.type === 'SINGLE_CHOICE' || fullSubQuestion.type === 'MULTIPLE_CHOICE' || fullSubQuestion.type === 'CHOICE') {
       const optionCountMap = {}
       let totalSelections = 0
 
@@ -1153,7 +1195,7 @@ const viewSubQuestionStats = async (subQuestion, index) => {
             .forEach(a => {
               if (!a.content) return
               // 多选题答案可能是用逗号拼接的，拆开逐个统计
-              const parts = subQuestion.type === 'MULTIPLE_CHOICE'
+              const parts = fullSubQuestion.type === 'MULTIPLE_CHOICE'
                 ? a.content.split(',').map(p => p.trim()).filter(Boolean)
                 : [a.content.trim()]
               parts.forEach(p => {
@@ -1166,7 +1208,7 @@ const viewSubQuestionStats = async (subQuestion, index) => {
         }
       })
 
-      const opts = subQuestion.options || []
+      const opts = fullSubQuestion.options || []
       statistics.value = opts.map(opt => {
         const count = optionCountMap[opt.content] || 0
         return {
@@ -1180,7 +1222,7 @@ const viewSubQuestionStats = async (subQuestion, index) => {
       console.log('[Quiz] Sub-question choice statistics:', statistics.value)
     }
     // 问答题子问题统计
-    else if (subQuestion.type === 'ESSAY') {
+    else if (fullSubQuestion.type === 'ESSAY') {
       const subAnswers = []
       allAnswers.forEach(ans => {
         try {
@@ -1272,6 +1314,13 @@ const getStatCount = (optionContent) => {
 
 // 获取选项的统计百分比
 const getStatPercentage = (optionContent) => {
+  if (!statistics.value || statistics.value.length === 0) return 0
+  const stat = statistics.value.find(s => s.optionContent === optionContent)
+  return stat ? Math.round(stat.percentage) : 0
+}
+
+// 获取测验子问题的统计百分比
+const getQuizSubQuestionStatPercentage = (optionContent) => {
   if (!statistics.value || statistics.value.length === 0) return 0
   const stat = statistics.value.find(s => s.optionContent === optionContent)
   return stat ? Math.round(stat.percentage) : 0
@@ -1901,13 +1950,15 @@ const displayQuestionOnPresent = async (mode) => {
   
   try {
     const questionId = selectedQuestion.value.id
-    console.log('[InteractionTab] Displaying question on present:', questionId, mode)
+    // 如果正在查看子问题详情，传递子问题索引
+    const subQuestionIndex = viewingSubQuestion.value?.index ?? null
+    console.log('[InteractionTab] Displaying question on present:', questionId, mode, 'subQuestionIndex:', subQuestionIndex)
     
-    // 调用API更新数据库状态
+    // 调用API更新数据库状态（暂时不支持子问题索引，只传递 questionId 和 mode）
     await api.classroom.setDisplayQuestion(props.classroomId, questionId, mode)
     
-    // 通过WebSocket广播
-    websocket.sendDisplayQuestion(props.classroomId, questionId, mode)
+    // 通过WebSocket广播（包含子问题索引）
+    websocket.sendDisplayQuestion(props.classroomId, questionId, mode, subQuestionIndex)
     
     console.log('[InteractionTab] Question displayed on present successfully')
   } catch (error) {
