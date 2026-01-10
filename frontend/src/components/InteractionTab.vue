@@ -326,7 +326,8 @@
                   :key="optIndex"
                   :class="['option', { 
                     selected: selectedQuizAnswers[index] === option.content,
-                    disabled: isQuestionSubmitted
+                    disabled: isQuestionSubmitted,
+                    submitted: isQuestionSubmitted && selectedQuizAnswers[index] === option.content
                   }]"
                   @click="selectQuizOption(index, option.content, 'SINGLE_CHOICE')"
                 >
@@ -341,7 +342,8 @@
                   :key="optIndex"
                   :class="['option', { 
                     selected: isQuizOptionSelected(index, option.content),
-                    disabled: isQuestionSubmitted
+                    disabled: isQuestionSubmitted,
+                    submitted: isQuestionSubmitted && isQuizOptionSelected(index, option.content)
                   }]"
                   @click="selectQuizOption(index, option.content, 'MULTIPLE_CHOICE')"
                 >
@@ -388,7 +390,8 @@
               :key="option.id"
               :class="['option', { 
                 selected: selectedOption === option.content,
-                disabled: isQuestionSubmitted
+                disabled: isQuestionSubmitted,
+                submitted: isQuestionSubmitted && selectedOption === option.content
               }]"
               @click="selectOption(option.content)"
             >
@@ -437,7 +440,8 @@
               :key="option.id"
               :class="['option', { 
                 selected: selectedOptions.includes(option.content),
-                disabled: isQuestionSubmitted
+                disabled: isQuestionSubmitted,
+                submitted: isQuestionSubmitted && selectedOptions.includes(option.content)
               }]"
               @click="toggleOption(option.content)"
             >
@@ -994,8 +998,52 @@ const restoreMyAnswerFromServer = async (questionId, type) => {
       if (currentQuestion.value && currentQuestion.value.id === questionId) {
         essayAnswer.value = myAnswerRecord.content
       }
+    } else if (type === 'SINGLE_CHOICE') {
+      // 单选题：content 就是选项内容
+      questionSelectedOptions.value[questionId].single = myAnswerRecord.content
+      if (currentQuestion.value && currentQuestion.value.id === questionId) {
+        selectedOption.value = myAnswerRecord.content
+      }
+    } else if (type === 'MULTIPLE_CHOICE') {
+      // 多选题：content 是用逗号分隔的选项内容（可能带空格）
+      const options = myAnswerRecord.content.split(',').map(opt => opt.trim()).filter(Boolean)
+      questionSelectedOptions.value[questionId].multiple = options
+      if (currentQuestion.value && currentQuestion.value.id === questionId) {
+        selectedOptions.value = [...options]
+      }
+    } else if (type === 'QUIZ') {
+      // 测验：content 是 JSON 字符串，包含所有子问题的答案
+      try {
+        const payload = JSON.parse(myAnswerRecord.content)
+        if (payload.answers && Array.isArray(payload.answers)) {
+          const quizAnswers = {}
+          const quizEssays = {}
+          payload.answers.forEach(a => {
+            if (a.subQuestionType === 'SINGLE_CHOICE' || a.subQuestionType === 'MULTIPLE_CHOICE') {
+              if (a.subQuestionType === 'MULTIPLE_CHOICE') {
+                // 多选题：用逗号分隔（可能带空格）
+                quizAnswers[a.subQuestionIndex] = a.content.split(',').map(opt => opt.trim()).filter(Boolean)
+              } else {
+                // 单选题：直接是选项内容
+                quizAnswers[a.subQuestionIndex] = a.content.trim()
+              }
+            } else if (a.subQuestionType === 'ESSAY') {
+              quizEssays[a.subQuestionIndex] = a.content
+            }
+          })
+          questionSelectedOptions.value[questionId].quiz = {
+            answers: quizAnswers,
+            essays: quizEssays
+          }
+          if (currentQuestion.value && currentQuestion.value.id === questionId) {
+            selectedQuizAnswers.value = { ...quizAnswers }
+            quizEssayAnswers.value = { ...quizEssays }
+          }
+        }
+      } catch (e) {
+        console.error('[InteractionTab] Failed to parse quiz answer JSON:', e)
+      }
     }
-    // 这里也可以按需扩展选择题等类型的恢复逻辑
   } catch (e) {
     console.error('[InteractionTab] Failed to restore viewer answer from server:', e)
   }
@@ -1029,7 +1077,8 @@ const loadQuestionDetail = async (questionId) => {
     currentQuestion.value = data
 
     // 观众端：优先从服务器恢复一次历史答案（例如刷新页面后）
-    if (!props.isHost && data.type === 'ESSAY' && !submittedQuestions.value[questionId]) {
+    // 对所有类型的问题都尝试恢复答案
+    if (!props.isHost && !submittedQuestions.value[questionId]) {
       await restoreMyAnswerFromServer(questionId, data.type)
     }
 
@@ -3385,6 +3434,19 @@ const wordCloudKeywords = computed(() => {
   border-color: #999;
   background: #e8e8e8;
   opacity: 0.8;
+}
+
+.option.submitted {
+  background: #e0e0e0 !important;
+  border-color: #999 !important;
+  color: #666 !important;
+  cursor: not-allowed;
+}
+
+.option.submitted.selected {
+  background: #d0d0d0 !important;
+  border-color: #888 !important;
+  color: #555 !important;
 }
 
 .submit-btn {
