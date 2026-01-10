@@ -55,6 +55,9 @@ export default {
       questionId,
       mode
     }),
+    // 课堂状态检查
+    getStatus: (id) => api.get(`/classrooms/${id}/status`),
+    canJoin: (id) => api.get(`/classrooms/${id}/can-join`),
     // 复制相关
     getFileToCopy: (id) => api.get(`/classrooms/${id}/copy-file`),
     copyQuestionsToClassroom: (sourceId, targetId) => api.post(`/classrooms/${sourceId}/copy-questions-to/${targetId}`),

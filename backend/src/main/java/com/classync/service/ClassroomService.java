@@ -205,6 +205,38 @@ public class ClassroomService {
         return savedClassroom;
     }
     
+    /**
+     * 获取课堂状态
+     * @return "NOT_STARTED" | "IN_PROGRESS" | "ENDED"
+     */
+    public String getClassroomStatus(Long classroomId) {
+        Optional<Classroom> classroomOpt = classroomRepository.findById(classroomId);
+        if (classroomOpt.isEmpty()) {
+            return null;
+        }
+        
+        Classroom classroom = classroomOpt.get();
+        LocalDateTime now = LocalDateTime.now();
+        
+        if (now.isBefore(classroom.getStartTime())) {
+            return "NOT_STARTED";
+        } else if (now.isAfter(classroom.getEndTime())) {
+            return "ENDED";
+        } else {
+            return "IN_PROGRESS";
+        }
+    }
+    
+    /**
+     * 检查学生是否可以进入课堂
+     * @return true if allowed, false otherwise
+     */
+    public boolean canStudentJoin(Long classroomId) {
+        String status = getClassroomStatus(classroomId);
+        // 只有进行中的课堂学生才能进入
+        return "IN_PROGRESS".equals(status);
+    }
+    
     private String generateClassCode() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         Random random = new Random();

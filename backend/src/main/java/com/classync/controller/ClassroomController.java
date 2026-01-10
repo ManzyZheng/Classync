@@ -214,5 +214,26 @@ public class ClassroomController {
             return ResponseEntity.badRequest().build();
         }
     }
+    
+    /**
+     * 获取课堂状态
+     */
+    @GetMapping("/{id}/status")
+    public ResponseEntity<Map<String, String>> getClassroomStatus(@PathVariable Long id) {
+        String status = classroomService.getClassroomStatus(id);
+        if (status == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(Map.of("status", status));
+    }
+    
+    /**
+     * 检查学生是否可以进入课堂
+     */
+    @GetMapping("/{id}/can-join")
+    public ResponseEntity<Map<String, Boolean>> canStudentJoin(@PathVariable Long id) {
+        boolean canJoin = classroomService.canStudentJoin(id);
+        return ResponseEntity.ok(Map.of("canJoin", canJoin));
+    }
 }
 
