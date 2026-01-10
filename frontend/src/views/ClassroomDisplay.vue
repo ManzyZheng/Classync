@@ -180,7 +180,20 @@ const generateQRCode = async () => {
   
   try {
     // 生成二维码内容：完整的 URL
-    const qrContent = `${window.location.origin}/join/${classroomCode.value}`
+    // 开发环境：使用局域网 IP（手机可以扫码访问）
+    // 生产环境：使用当前域名
+    let baseUrl
+    if (import.meta.env.DEV) {
+      // 开发环境：使用 localhost（仅电脑本地测试）
+      baseUrl = 'http://localhost:5173'
+      // 或者使用局域网 IP（手机可以扫码访问）
+      // baseUrl = 'http://172.29.5.89:5173'
+    } else {
+      // 生产环境：使用当前访问的域名
+      baseUrl = window.location.origin
+    }
+    
+    const qrContent = `${baseUrl}/join/${classroomCode.value}`
     console.log('[Display] QR code content:', qrContent)
     
     await QRCode.toCanvas(qrcodeCanvas.value, qrContent, {
