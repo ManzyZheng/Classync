@@ -35,6 +35,13 @@ public class Classroom {
     @Column(name = "current_page")
     private Integer currentPage = 1;
     
+    // 问题展示状态
+    @Column(name = "display_question_id")
+    private Long displayQuestionId;  // 当前展示的问题ID，null表示不展示问题
+    
+    @Column(name = "display_question_mode", length = 30)
+    private String displayQuestionMode;  // QUESTION_ONLY 或 QUESTION_WITH_RESULT
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     

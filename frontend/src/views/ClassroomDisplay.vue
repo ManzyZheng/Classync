@@ -1,6 +1,7 @@
 <template>
   <div class="display-container">
-    <div class="pdf-display">
+    <!-- PDF 展示 -->
+    <div class="pdf-display" :class="{ 'hidden-by-overlay': showQuestionOverlay }">
       <PdfViewer 
         v-if="pdfUrl"
         :pdf-url="pdfUrl"
@@ -13,6 +14,13 @@
         <p>未上传 PDF 文件</p>
       </div>
     </div>
+    
+    <!-- 问题覆盖层 -->
+    <QuestionOverlay 
+      :visible="showQuestionOverlay"
+      :question-id="displayQuestionId"
+      :mode="displayQuestionMode"
+    />
     
     <!-- 课堂码和二维码浮层 -->
     <transition name="fade">
@@ -33,6 +41,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '../api'
 import websocket from '../utils/websocket'
 import PdfViewer from '../components/PdfViewer.vue'
+import QuestionOverlay from '../components/QuestionOverlay.vue'
 import QRCode from 'qrcode'
 
 const route = useRoute()
@@ -45,6 +54,11 @@ const totalPages = ref(0)
 const showClassroomCode = ref(false)  // 展示课堂码开关状态
 const classroomCode = ref('')  // 课堂码
 const qrcodeCanvas = ref(null)  // 二维码 canvas 引用
+
+// 问题展示状态
+const showQuestionOverlay = ref(false)
+const displayQuestionId = ref(null)
+const displayQuestionMode = ref('QUESTION_ONLY')
 
 onMounted(async () => {
   await loadClassroom()
@@ -72,9 +86,13 @@ const loadClassroom = async () => {
       pdfUrl.value = `/uploads/${data.pdfPath}`
     }
     
-    // ⚠️ 临时方案：如果 WebSocket 无法连接，可以手动设置为显示状态进行测试
-    // 生产环境请删除此行，使用 WebSocket 控制
-    // showClassroomCode.value = true
+    // 初始化问题展示状态
+    if (data.displayQuestionId) {
+      displayQuestionId.value = data.displayQuestionId
+      displayQuestionMode.value = data.displayQuestionMode || 'QUESTION_ONLY'
+      showQuestionOverlay.value = true
+      console.log('[Display] Initial question display:', displayQuestionId.value, displayQuestionMode.value)
+    }
   } catch (error) {
     console.error('Failed to load classroom:', error)
     alert('加载课堂失败')
@@ -90,6 +108,12 @@ const connectWebSocket = async () => {
         console.log('[Display] Classroom state:', payload)
         if (payload.currentPage) {
           currentPage.value = payload.currentPage
+        }
+        // 恢复问题展示状态
+        if (payload.displayQuestionId) {
+          displayQuestionId.value = payload.displayQuestionId
+          displayQuestionMode.value = payload.displayQuestionMode || 'QUESTION_ONLY'
+          showQuestionOverlay.value = true
         }
       },
       // ✅ 订阅 PAGE_UPDATE 事件
@@ -117,6 +141,20 @@ const connectWebSocket = async () => {
               generateQRCode()
             })
           }
+        }
+      },
+      // ✅ 订阅 DISPLAY_QUESTION 事件
+      onDisplayQuestion: (payload) => {
+        console.log('[Display] Display question event:', payload)
+        if (payload.questionId) {
+          displayQuestionId.value = payload.questionId
+          displayQuestionMode.value = payload.mode || 'QUESTION_ONLY'
+          showQuestionOverlay.value = true
+        } else {
+          // 清除问题展示
+          showQuestionOverlay.value = false
+          displayQuestionId.value = null
+          displayQuestionMode.value = 'QUESTION_ONLY'
         }
       }
     })
@@ -185,6 +223,12 @@ watch([classroomCode, showClassroomCode], ([code, show]) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: opacity 0.3s ease;
+}
+
+.pdf-display.hidden-by-overlay {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* 覆盖 PdfViewer 的样式，隐藏工具栏 */

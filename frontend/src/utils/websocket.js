@@ -13,7 +13,8 @@ export const WS_EVENTS = {
   DISPLAY_CODE_TOGGLE: 'DISPLAY_CODE_TOGGLE',
   PAGE_LOCK_UPDATE: 'PAGE_LOCK_UPDATE',
   PAGE_LOCK_BATCH: 'PAGE_LOCK_BATCH',
-  PAGE_LOCK_BATCH_UNLOCK: 'PAGE_LOCK_BATCH_UNLOCK'
+  PAGE_LOCK_BATCH_UNLOCK: 'PAGE_LOCK_BATCH_UNLOCK',
+  DISPLAY_QUESTION: 'DISPLAY_QUESTION'
 }
 
 class WebSocketService {
@@ -110,6 +111,9 @@ class WebSocketService {
         break
       case WS_EVENTS.PAGE_LOCK_BATCH_UNLOCK:
         callbacks.onPageLockBatchUnlock?.(payload)
+        break
+      case WS_EVENTS.DISPLAY_QUESTION:
+        callbacks.onDisplayQuestion?.(payload)
         break
       default:
         console.warn(`Unknown event type: ${event}`)
@@ -231,6 +235,17 @@ class WebSocketService {
     this.send('/app/page_lock_batch_unlock', {
       classroomId,
       data: { fromPage }
+    })
+  }
+  
+  // 发送问题展示消息
+  sendDisplayQuestion(classroomId, questionId, mode) {
+    this.send('/app/display_question', {
+      classroomId,
+      data: {
+        questionId,
+        mode
+      }
     })
   }
 }

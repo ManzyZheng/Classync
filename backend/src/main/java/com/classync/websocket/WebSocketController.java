@@ -36,6 +36,7 @@ public class WebSocketController {
     private static final String EVENT_PAGE_LOCK_UPDATE = "PAGE_LOCK_UPDATE";
     private static final String EVENT_PAGE_LOCK_BATCH = "PAGE_LOCK_BATCH";
     private static final String EVENT_PAGE_LOCK_BATCH_UNLOCK = "PAGE_LOCK_BATCH_UNLOCK";
+    private static final String EVENT_DISPLAY_QUESTION = "DISPLAY_QUESTION";
 
     @MessageMapping("/join_classroom")
     public void joinClassroom(@Payload Map<String, Object> request) {
@@ -59,6 +60,12 @@ public class WebSocketController {
         payload.put("currentPage", classroom.getCurrentPage());
         payload.put("openQuestions", openQuestions);
         payload.put("pageLocks", pageLocks);
+
+        // 添加问题展示状态
+        if (classroom.getDisplayQuestionId() != null) {
+            payload.put("displayQuestionId", classroom.getDisplayQuestionId());
+            payload.put("displayQuestionMode", classroom.getDisplayQuestionMode());
+        }
 
         WebSocketMessage response = WebSocketMessage.of(
                 EVENT_CLASSROOM_STATE,
@@ -215,6 +222,25 @@ public class WebSocketController {
         // 广播批量解锁
         WebSocketMessage response = WebSocketMessage.of(
                 EVENT_PAGE_LOCK_BATCH_UNLOCK,
+                classroomId,
+                data);
+
+        messagingTemplate.convertAndSend("/topic/classroom/" + classroomId, response);
+    }
+
+    /**
+     * 广播问题展示状态
+     */
+    @MessageMapping("/display_question")
+    public void displayQuestion(@Payload Map<String, Object> request) {
+        Long classroomId = Long.valueOf(request.get("classroomId").toString());
+        Map<String, Object> data = (Map<String, Object>) request.get("data");
+
+        System.out.println("[WebSocket] Broadcasting display question: " + data);
+
+        // 广播到放映页
+        WebSocketMessage response = WebSocketMessage.of(
+                EVENT_DISPLAY_QUESTION,
                 classroomId,
                 data);
 

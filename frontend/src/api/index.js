@@ -49,7 +49,11 @@ export default {
       return api.post(`/classrooms/${id}/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-    }
+    },
+    setDisplayQuestion: (classroomId, questionId, mode) => api.post(`/classrooms/${classroomId}/display-question`, {
+      questionId,
+      mode
+    })
   },
 
   // 问题相关

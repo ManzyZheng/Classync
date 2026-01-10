@@ -69,18 +69,34 @@
         <p>{{ selectedQuestion.content }}</p>
       </div>
       
-        <!-- 选择题选项列表 -->
+        <!-- 选择题选项列表（含实时统计） -->
         <div v-if="(selectedQuestion.type === 'SINGLE_CHOICE' || selectedQuestion.type === 'MULTIPLE_CHOICE' || selectedQuestion.type === 'CHOICE') && selectedQuestion.options && selectedQuestion.options.length > 0" class="question-options-list">
-          <h4>选项列表</h4>
+          <h4>选项与实时统计</h4>
           <div class="options-list">
             <div 
               v-for="(option, index) in selectedQuestion.options"
               :key="option.id"
-              class="option-item"
+              class="option-item-with-stats"
             >
-              <span class="option-label">{{ String.fromCharCode(65 + index) }}.</span>
-              <span class="option-content">{{ option.content }}</span>
-              <span v-if="option.isCorrect" class="correct-badge">正确答案</span>
+              <!-- 选项标题 -->
+              <div class="option-title">
+                <span class="option-label-text">{{ String.fromCharCode(65 + index) }}</span>
+                <span class="option-divider">-</span>
+                <span class="option-content-text">{{ option.content }}</span>
+                <span v-if="option.isCorrect" class="correct-indicator">✓</span>
+              </div>
+              
+              <!-- 条形图和百分比 -->
+              <div class="stats-row">
+                <div class="stats-bar-wrapper">
+                  <div 
+                    class="stats-bar-fill" 
+                    :style="{ width: getStatPercentage(option.content) + '%' }"
+                    :class="{ 'is-correct': option.isCorrect }"
+                  ></div>
+                </div>
+                <span class="stats-percentage-text">{{ getStatPercentage(option.content) }}%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -204,34 +220,46 @@
             </div>
           </div>
         </div>
-        <div 
-          v-if="
-            selectedQuestion.type === 'SINGLE_CHOICE' ||
-            selectedQuestion.type === 'MULTIPLE_CHOICE' ||
-            selectedQuestion.type === 'CHOICE' ||
-            (selectedQuestion.type === 'QUIZ' && viewingSubQuestion && (viewingSubQuestion.type === 'SINGLE_CHOICE' || viewingSubQuestion.type === 'MULTIPLE_CHOICE' || viewingSubQuestion.type === 'CHOICE'))
-          "
-          class="choice-statistics"
-        >
-          <div 
-            v-for="stat in statistics" 
-            :key="stat.optionContent"
-            class="stat-item"
-          >
-            <div class="option-text">{{ stat.optionContent }}</div>
-            <div class="stat-bar">
-              <div 
-                class="bar-fill"
-                :style="{ width: stat.percentage + '%' }"
-              ></div>
-              <span class="stat-text">{{ stat.count }}人 ({{ stat.percentage.toFixed(1) }}%)</span>
-            </div>
-          </div>
-        </div>
         
-        <!-- 问答题词云 -->
+        <!-- 问答题词云（保留原样，但移除不需要的部分）-->
         <div v-if="selectedQuestion.type === 'ESSAY'" class="essay-wordcloud">
           <canvas ref="wordcloudCanvas" width="400" height="300"></canvas>
+        </div>
+        
+        <!-- 放映页展示按钮 -->
+        <div class="display-actions">
+          <span class="display-label">放映页：</span>
+          <button 
+            class="display-btn display-question-only"
+            @click="displayQuestionOnPresent('QUESTION_ONLY')"
+            :disabled="!selectedQuestion.isOpen"
+            title="在放映页展示问题（不含结果）"
+          >
+            显示问题
+          </button>
+          <button 
+            class="display-btn display-show-results"
+            @click="displayQuestionOnPresent('SHOW_RESULTS')"
+            :disabled="!selectedQuestion.isOpen"
+            title="在放映页展示问题和实时结果"
+          >
+            显示结果
+          </button>
+          <button 
+            class="display-btn display-show-answer"
+            @click="displayQuestionOnPresent('SHOW_ANSWER')"
+            :disabled="!selectedQuestion.isOpen"
+            title="在放映页显示正确答案"
+          >
+            显示答案
+          </button>
+          <button 
+            class="display-btn close-display"
+            @click="closeQuestionDisplay"
+            title="关闭放映页问题展示，返回PPT"
+          >
+            关闭展示
+          </button>
         </div>
         
         <button 
@@ -641,7 +669,7 @@ const cutText = (text, useHMM = true) => {
   if (!jiebaModule.cut) {
     throw new Error('Jieba cut function not available')
   }
-  return jiebaModule.cut(text, useHMM)
+  return jiebaModule.cut(text, !useHMM)
 }
 
 const props = defineProps({
@@ -1184,6 +1212,20 @@ const loadStatistics = async (questionId) => {
   } catch (error) {
     console.error('Failed to load statistics:', error)
   }
+}
+
+// 获取选项的统计计数
+const getStatCount = (optionContent) => {
+  if (!statistics.value || statistics.value.length === 0) return 0
+  const stat = statistics.value.find(s => s.optionContent === optionContent)
+  return stat ? stat.count : 0
+}
+
+// 获取选项的统计百分比
+const getStatPercentage = (optionContent) => {
+  if (!statistics.value || statistics.value.length === 0) return 0
+  const stat = statistics.value.find(s => s.optionContent === optionContent)
+  return stat ? Math.round(stat.percentage) : 0
 }
 
 // ✅ 加载问答题答案
@@ -1804,6 +1846,45 @@ const finishQuestion = async () => {
   }
 }
 
+// 在放映页展示问题
+const displayQuestionOnPresent = async (mode) => {
+  if (!selectedQuestion.value) return
+  
+  try {
+    const questionId = selectedQuestion.value.id
+    console.log('[InteractionTab] Displaying question on present:', questionId, mode)
+    
+    // 调用API更新数据库状态
+    await api.classroom.setDisplayQuestion(props.classroomId, questionId, mode)
+    
+    // 通过WebSocket广播
+    websocket.sendDisplayQuestion(props.classroomId, questionId, mode)
+    
+    console.log('[InteractionTab] Question displayed on present successfully')
+  } catch (error) {
+    console.error('Failed to display question on present:', error)
+    alert('展示问题失败，请重试')
+  }
+}
+
+// 关闭放映页问题展示
+const closeQuestionDisplay = async () => {
+  try {
+    console.log('[InteractionTab] Closing question display')
+    
+    // 调用API清除数据库状态
+    await api.classroom.setDisplayQuestion(props.classroomId, null, null)
+    
+    // 通过WebSocket广播
+    websocket.sendDisplayQuestion(props.classroomId, null, null)
+    
+    console.log('[InteractionTab] Question display closed successfully')
+  } catch (error) {
+    console.error('Failed to close question display:', error)
+    alert('关闭展示失败，请重试')
+  }
+}
+
 const toggleMenu = (questionId, event) => {
   // 阻止事件冒泡
   if (event) {
@@ -1970,17 +2051,16 @@ const submitMultipleChoiceAnswer = async () => {
       options: selectedOptions.value
     })
     
-    // 为每个选中的选项单独提交一条答案记录
-    await Promise.all(selectedOptions.value.map(option =>
-      api.answer.submit({
-        questionId,
-        userId: userStore.currentUser.id,
-        content: option
-      })
-    ))
+    // ✅ 修复：将所有选中的选项合并成一个字符串，用逗号分隔，一次性提交
+    const answerContent = selectedOptions.value.join(',')
     
-    const answerContent = selectedOptions.value.join(', ')
-    console.log('[InteractionTab] Multiple choice answer submitted successfully')
+    await api.answer.submit({
+      questionId,
+      userId: userStore.currentUser.id,
+      content: answerContent  // 例如: "老虎,青蛙"
+    })
+    
+    console.log('[InteractionTab] Multiple choice answer submitted successfully:', answerContent)
     submitted.value = true
     submittedQuestions.value[questionId] = true
     // 保存选项状态
@@ -1988,7 +2068,7 @@ const submitMultipleChoiceAnswer = async () => {
       questionSelectedOptions.value[questionId] = {}
     }
     questionSelectedOptions.value[questionId].multiple = [...selectedOptions.value]
-    myAnswer.value = answerContent
+    myAnswer.value = selectedOptions.value.join(', ')  // 显示用逗号+空格
     websocket.sendAnswerSubmit(props.classroomId, questionId)
   } catch (error) {
     console.error('Failed to submit multiple choice answer:', error)
@@ -2564,6 +2644,84 @@ const wordCloudKeywords = computed(() => {
   font-weight: 600;
 }
 
+/* 选项与统计合并样式（Slido风格） */
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.option-item-with-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 选项标题（在条形图上方） */
+.option-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #333;
+}
+
+.option-label-text {
+  font-weight: 600;
+}
+
+.option-divider {
+  color: #9ca3af;
+}
+
+.option-content-text {
+  font-weight: 500;
+}
+
+.correct-indicator {
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #dcfce7;
+  color: #16a34a;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 统计行（条形图 + 百分比） */
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stats-bar-wrapper {
+  flex: 1;
+  height: 24px;
+  background: #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.stats-bar-fill {
+  height: 100%;
+  background: #9ca3af;
+  border-radius: 12px;
+  transition: width 0.6s ease;
+}
+
+.stats-bar-fill.is-correct {
+  background: #22c55e;
+}
+
+.stats-percentage-text {
+  min-width: 45px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6c757d;
+}
+
 .quiz-subquestion-detail {
   margin-bottom: 16px;
   padding: 16px;
@@ -2625,42 +2783,7 @@ const wordCloudKeywords = computed(() => {
   gap: 10px;
 }
 
-.option-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.option-item:hover {
-  border-color: #667eea;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.1);
-}
-
-.option-label {
-  font-weight: 600;
-  color: #667eea;
-  min-width: 24px;
-}
-
-.option-content {
-  flex: 1;
-  color: #333;
-}
-
-.correct-badge {
-  padding: 4px 10px;
-  background: #4caf50;
-  color: white;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
+/* 旧的 choice-statistics 样式（如果有使用可保留，否则可删除）*/
 .choice-statistics {
   flex: 1;
   overflow-y: auto;
@@ -3047,6 +3170,75 @@ const wordCloudKeywords = computed(() => {
   color: white;
   border-radius: 4px;
   margin-top: 16px;
+}
+
+/* 放映页展示按钮 */
+.display-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  margin-bottom: 16px;
+}
+
+.display-label {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.display-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.display-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.display-question-only {
+  background: #667eea;
+  color: white;
+}
+
+.display-question-only:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.display-show-results {
+  background: #3b82f6;
+  color: white;
+}
+
+.display-show-results:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.display-show-answer {
+  background: #22c55e;
+  color: white;
+}
+
+.display-show-answer:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.close-display {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #d1d5db;
+}
+
+.close-display:hover {
+  background: #e5e7eb;
 }
 
 .no-interaction {

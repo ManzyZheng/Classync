@@ -38,9 +38,20 @@ public class AnswerService {
         List<Answer> answers = answerRepository.findByQuestionId(questionId);
         List<QuestionOption> options = questionOptionRepository.findByQuestionIdOrderByOptionOrderAsc(questionId);
         
+        // 修复多选题统计：需要拆分每个答案中的多个选项
         Map<String, Long> countMap = new HashMap<>();
         for (Answer answer : answers) {
-            countMap.put(answer.getContent(), countMap.getOrDefault(answer.getContent(), 0L) + 1);
+            String content = answer.getContent();
+            if (content != null && !content.isEmpty()) {
+                // 按逗号分割（多选题的答案格式为 "选项1,选项2,..."）
+                String[] selectedOptions = content.split(",");
+                for (String option : selectedOptions) {
+                    String trimmedOption = option.trim();
+                    if (!trimmedOption.isEmpty()) {
+                        countMap.put(trimmedOption, countMap.getOrDefault(trimmedOption, 0L) + 1);
+                    }
+                }
+            }
         }
         
         List<AnswerStatisticsDTO> statistics = new ArrayList<>();
