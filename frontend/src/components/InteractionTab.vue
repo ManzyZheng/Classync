@@ -352,49 +352,101 @@
               <div class="subquestion-content">{{ subQuestion.content }}</div>
               
               <!-- 单选题子问题 -->
-              <div v-if="subQuestion.type === 'SINGLE_CHOICE' && subQuestion.options" class="subquestion-options">
-                <div 
-                  v-for="(option, optIndex) in subQuestion.options"
-                  :key="optIndex"
-                  :class="['option', { 
-                    selected: selectedQuizAnswers[index] === option.content,
-                    disabled: isQuestionSubmitted,
-                    submitted: isQuestionSubmitted && selectedQuizAnswers[index] === option.content
-                  }]"
-                  @click="selectQuizOption(index, option.content, 'SINGLE_CHOICE')"
-                >
-                  {{ option.content }}
+              <div v-if="subQuestion.type === 'SINGLE_CHOICE' && subQuestion.options">
+                <!-- 未结束时显示选项 -->
+                <div v-if="!currentQuestion.isFinished" class="subquestion-options">
+                  <div 
+                    v-for="(option, optIndex) in subQuestion.options"
+                    :key="optIndex"
+                    :class="['option', { 
+                      selected: selectedQuizAnswers[index] === option.content,
+                      disabled: isQuestionSubmitted,
+                      submitted: isQuestionSubmitted && selectedQuizAnswers[index] === option.content
+                    }]"
+                    @click="selectQuizOption(index, option.content, 'SINGLE_CHOICE')"
+                  >
+                    {{ option.content }}
+                  </div>
+                </div>
+                <!-- 结束时显示结果 -->
+                <div v-else-if="currentQuestion.isFinished && quizSubQuestionStatistics[index]" class="subquestion-results">
+                  <div 
+                    v-for="stat in quizSubQuestionStatistics[index]"
+                    :key="stat.optionContent"
+                    :class="['result-item', { 
+                      correct: stat.isCorrect,
+                      myAnswer: getMyQuizAnswer(index) === stat.optionContent
+                    }]"
+                  >
+                    <div class="option-text">{{ stat.optionContent }}</div>
+                    <div class="result-bar">
+                      <div 
+                        :class="['bar-fill', { correct: stat.isCorrect }]"
+                        :style="{ width: stat.percentage + '%' }"
+                      ></div>
+                      <span>{{ stat.percentage.toFixed(1) }}%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               
               <!-- 多选题子问题 -->
-              <div v-if="subQuestion.type === 'MULTIPLE_CHOICE' && subQuestion.options" class="subquestion-options">
-                <div 
-                  v-for="(option, optIndex) in subQuestion.options"
-                  :key="optIndex"
-                  :class="['option', { 
-                    selected: isQuizOptionSelected(index, option.content),
-                    disabled: isQuestionSubmitted,
-                    submitted: isQuestionSubmitted && isQuizOptionSelected(index, option.content)
-                  }]"
-                  @click="selectQuizOption(index, option.content, 'MULTIPLE_CHOICE')"
-                >
-                  {{ option.content }}
+              <div v-if="subQuestion.type === 'MULTIPLE_CHOICE' && subQuestion.options">
+                <!-- 未结束时显示选项 -->
+                <div v-if="!currentQuestion.isFinished" class="subquestion-options">
+                  <div 
+                    v-for="(option, optIndex) in subQuestion.options"
+                    :key="optIndex"
+                    :class="['option', { 
+                      selected: isQuizOptionSelected(index, option.content),
+                      disabled: isQuestionSubmitted,
+                      submitted: isQuestionSubmitted && isQuizOptionSelected(index, option.content)
+                    }]"
+                    @click="selectQuizOption(index, option.content, 'MULTIPLE_CHOICE')"
+                  >
+                    {{ option.content }}
+                  </div>
+                </div>
+                <!-- 结束时显示结果 -->
+                <div v-else-if="currentQuestion.isFinished && quizSubQuestionStatistics[index]" class="subquestion-results">
+                  <div 
+                    v-for="stat in quizSubQuestionStatistics[index]"
+                    :key="stat.optionContent"
+                    :class="['result-item', { 
+                      correct: stat.isCorrect,
+                      myAnswer: isMyQuizAnswerSelected(index, stat.optionContent)
+                    }]"
+                  >
+                    <div class="option-text">{{ stat.optionContent }}</div>
+                    <div class="result-bar">
+                      <div 
+                        :class="['bar-fill', { correct: stat.isCorrect }]"
+                        :style="{ width: stat.percentage + '%' }"
+                      ></div>
+                      <span>{{ stat.percentage.toFixed(1) }}%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               
               <!-- 问答题子问题 -->
-              <div v-if="subQuestion.type === 'ESSAY'" class="subquestion-essay">
-                <textarea 
-                  v-model="quizEssayAnswers[index]"
-                  :disabled="isQuestionSubmitted"
-                  :placeholder="'请输入问题 ' + (index + 1) + ' 的答案'"
-                  rows="3"
-                ></textarea>
+              <div v-if="subQuestion.type === 'ESSAY'">
+                <div v-if="!currentQuestion.isFinished" class="subquestion-essay">
+                  <textarea 
+                    v-model="quizEssayAnswers[index]"
+                    :disabled="isQuestionSubmitted"
+                    :placeholder="'请输入问题 ' + (index + 1) + ' 的答案'"
+                    rows="3"
+                  ></textarea>
+                </div>
+                <div v-else class="subquestion-essay-result">
+                  <p class="essay-result-hint">问答题结果由老师查看</p>
+                </div>
               </div>
             </div>
             
             <button 
+              v-if="!currentQuestion.isFinished"
               class="submit-btn"
               :disabled="!canSubmitQuiz || isQuestionSubmitted"
               @click="submitQuizAnswer"
@@ -402,7 +454,7 @@
               {{ isQuestionSubmitted ? '已提交' : '提交全部答案' }}
             </button>
             
-            <div v-if="isQuestionSubmitted" class="submitted-message">
+            <div v-if="isQuestionSubmitted && !currentQuestion.isFinished" class="submitted-message">
               答案已提交，等待老师查看结果
             </div>
           </div>
@@ -753,6 +805,7 @@ const viewingSubQuestion = ref(null) // 当前查看的测验子问题
 // 测验相关状态
 const selectedQuizAnswers = ref({}) // { questionIndex: selectedOption } 或 { questionIndex: [selectedOptions] }
 const quizEssayAnswers = ref({}) // { questionIndex: answerText }
+const quizSubQuestionStatistics = ref({}) // { subIndex: statistics[] } 观众端测验子问题统计数据
 
 onMounted(() => {
   // 确保用户信息已加载
@@ -912,7 +965,7 @@ const updateQuestionState = (questionId, isOpen) => {
   }
 }
 
-const handleQuestionFinished = (payload) => {
+const handleQuestionFinished = async (payload) => {
   console.log('[InteractionTab] Question finished:', payload)
   
   const { questionId } = payload
@@ -927,7 +980,10 @@ const handleQuestionFinished = (payload) => {
   if (currentQuestion.value?.id === questionId) {
     currentQuestion.value.isFinished = true
     // 重新加载统计数据（如果需要）
-    if (currentQuestion.value.type === 'CHOICE' || 
+    if (currentQuestion.value.type === 'QUIZ') {
+      // 测验题：加载每个子问题的统计数据
+      await loadQuizViewerStatistics(questionId)
+    } else if (currentQuestion.value.type === 'CHOICE' || 
         currentQuestion.value.type === 'SINGLE_CHOICE' || 
         currentQuestion.value.type === 'MULTIPLE_CHOICE') {
       loadViewerStatistics(questionId)
@@ -1147,8 +1203,13 @@ const loadQuestionDetail = async (questionId) => {
     // 恢复提交状态
     submitted.value = wasSubmitted
     
-    if (data.isFinished && (data.type === 'CHOICE' || data.type === 'SINGLE_CHOICE' || data.type === 'MULTIPLE_CHOICE')) {
-      loadViewerStatistics(questionId)
+    if (data.isFinished) {
+      if (data.type === 'QUIZ') {
+        // 测验题：加载每个子问题的统计数据
+        await loadQuizViewerStatistics(questionId)
+      } else if (data.type === 'CHOICE' || data.type === 'SINGLE_CHOICE' || data.type === 'MULTIPLE_CHOICE') {
+        loadViewerStatistics(questionId)
+      }
     }
   } catch (error) {
     console.error('Failed to load question detail:', error)
@@ -1896,6 +1957,101 @@ const loadViewerStatistics = async (questionId) => {
   }
 }
 
+// 加载测验子问题的统计数据（观众端）
+const loadQuizViewerStatistics = async (quizId) => {
+  try {
+    // 获取整张测验题的所有回答
+    const allAnswers = await api.answer.getByQuestion(quizId)
+    
+    if (!currentQuestion.value || !currentQuestion.value.questions) return
+    
+    const subQuestions = currentQuestion.value.questions
+    
+    // 为每个子问题计算统计数据
+    for (let i = 0; i < subQuestions.length; i++) {
+      const subQuestion = subQuestions[i]
+      
+      if (subQuestion.type === 'SINGLE_CHOICE' || subQuestion.type === 'MULTIPLE_CHOICE' || subQuestion.type === 'CHOICE') {
+        const optionCountMap = {}
+        let totalSelections = 0
+        
+        allAnswers.forEach(ans => {
+          try {
+            const payload = JSON.parse(ans.content)
+            if (!payload.answers || !Array.isArray(payload.answers)) return
+            payload.answers
+              .filter(a => a.subQuestionIndex === i)
+              .forEach(a => {
+                if (!a.content) return
+                const parts = subQuestion.type === 'MULTIPLE_CHOICE'
+                  ? a.content.split(',').map(p => p.trim()).filter(Boolean)
+                  : [a.content.trim()]
+                parts.forEach(p => {
+                  optionCountMap[p] = (optionCountMap[p] || 0) + 1
+                  totalSelections++
+                })
+              })
+          } catch (e) {
+            console.warn('[InteractionTab] Failed to parse quiz answer JSON:', e)
+          }
+        })
+        
+        const opts = subQuestion.options || []
+        quizSubQuestionStatistics.value[i] = opts.map(opt => {
+          const count = optionCountMap[opt.content] || 0
+          return {
+            optionContent: opt.content,
+            count,
+            percentage: totalSelections > 0 ? (count * 100.0 / totalSelections) : 0,
+            isCorrect: !!opt.isCorrect
+          }
+        })
+      }
+    }
+    
+    console.log('[InteractionTab] Quiz viewer statistics loaded:', quizSubQuestionStatistics.value)
+  } catch (error) {
+    console.error('[InteractionTab] Failed to load quiz viewer statistics:', error)
+  }
+}
+
+// 获取测验子问题的统计百分比（观众端）
+const getQuizViewerStatPercentage = (subIndex, optionContent) => {
+  const stats = quizSubQuestionStatistics.value[subIndex]
+  if (!stats || !Array.isArray(stats)) return 0
+  const stat = stats.find(s => s.optionContent === optionContent)
+  return stat ? Math.round(stat.percentage) : 0
+}
+
+// 获取测验子问题的统计计数（观众端）
+const getQuizViewerStatCount = (subIndex, optionContent) => {
+  const stats = quizSubQuestionStatistics.value[subIndex]
+  if (!stats || !Array.isArray(stats)) return 0
+  const stat = stats.find(s => s.optionContent === optionContent)
+  return stat ? stat.count : 0
+}
+
+// 获取我的测验答案（单选题）
+const getMyQuizAnswer = (subIndex) => {
+  const savedState = questionSelectedOptions.value[currentQuestion.value?.id]
+  if (savedState?.quiz?.answers) {
+    return savedState.quiz.answers[subIndex]
+  }
+  return null
+}
+
+// 检查我的答案是否包含该选项（多选题）
+const isMyQuizAnswerSelected = (subIndex, optionContent) => {
+  const savedState = questionSelectedOptions.value[currentQuestion.value?.id]
+  if (savedState?.quiz?.answers) {
+    const myAnswer = savedState.quiz.answers[subIndex]
+    if (Array.isArray(myAnswer)) {
+      return myAnswer.includes(optionContent)
+    }
+  }
+  return false
+}
+
 const toggleQuestion = async (questionId) => {
   try {
     const question = questions.value.find(q => q.id === questionId)
@@ -2450,6 +2606,7 @@ const resetAnswerState = () => {
   essayAnswer.value = ''
   selectedQuizAnswers.value = {}
   quizEssayAnswers.value = {}
+  quizSubQuestionStatistics.value = {}
 }
 
 // 将wordFrequency转换为外部API需要的keywords格式
@@ -3416,6 +3573,33 @@ const wordCloudKeywords = computed(() => {
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+}
+
+.subquestion-results {
+  margin-top: 12px;
+}
+
+.subquestion-results .result-item {
+  margin-bottom: 12px;
+}
+
+.subquestion-results .result-item.myAnswer .option-text {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.subquestion-essay-result {
+  margin-top: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.essay-result-hint {
+  color: #6c757d;
+  font-size: 14px;
+  margin: 0;
 }
 
 .subquestion-essay {
