@@ -68,16 +68,11 @@
               <!-- 问答题子问题 -->
               <div v-else-if="subQuestion.type === 'ESSAY'" class="subquestion-essay-section">
                 <div v-if="showAnswer && subQuestionWordFrequency[subIndex] && subQuestionWordFrequency[subIndex].length > 0" class="essay-wordcloud">
-                  <div class="wordcloud-container">
-                    <span 
-                      v-for="(word, wordIndex) in subQuestionWordFrequency[subIndex]" 
-                      :key="wordIndex"
-                      class="word-tag"
-                      :style="getWordStyleForSubQuestion(word, wordIndex, subIndex)"
-                    >
-                      {{ word.word }}
-                    </span>
-                  </div>
+                  <WordCloudIframe
+                    :keywords="getSubQuestionWordCloudKeywords(subIndex)"
+                    bg-color="white"
+                    class="wordcloud-iframe-wrapper"
+                  />
                   <p class="essay-count">基于 {{ getSubQuestionEssayCount(subIndex) }} 份答案</p>
                 </div>
                 <div v-else class="essay-hint">
@@ -138,16 +133,11 @@
             <!-- 问答题子问题 -->
             <div v-else-if="subQuestions[selectedSubQuestionIndex].type === 'ESSAY'" class="subquestion-essay-section">
               <div v-if="showAnswer && subQuestionWordFrequency[selectedSubQuestionIndex] && subQuestionWordFrequency[selectedSubQuestionIndex].length > 0" class="essay-wordcloud">
-                <div class="wordcloud-container">
-                  <span 
-                    v-for="(word, wordIndex) in subQuestionWordFrequency[selectedSubQuestionIndex]" 
-                    :key="wordIndex"
-                    class="word-tag"
-                    :style="getWordStyleForSubQuestion(word, wordIndex, selectedSubQuestionIndex)"
-                  >
-                    {{ word.word }}
-                  </span>
-                </div>
+                <WordCloudIframe
+                  :keywords="getSubQuestionWordCloudKeywords(selectedSubQuestionIndex)"
+                  bg-color="white"
+                  class="wordcloud-iframe-wrapper"
+                />
                 <p class="essay-count">基于 {{ getSubQuestionEssayCount(selectedSubQuestionIndex) }} 份答案</p>
               </div>
               <div v-else class="essay-hint">
@@ -194,16 +184,11 @@
         <div v-else-if="question?.type === 'ESSAY'" class="essay-section">
           <!-- 显示答案模式：展示词云 -->
           <div v-if="showAnswer && wordFrequency.length > 0" class="essay-wordcloud">
-            <div class="wordcloud-container">
-              <span 
-                v-for="(word, index) in wordFrequency" 
-                :key="index"
-                class="word-tag"
-                :style="getWordStyleForDisplay(word, index)"
-              >
-                {{ word.word }}
-              </span>
-            </div>
+            <WordCloudIframe
+              :keywords="wordCloudKeywords"
+              bg-color="white"
+              class="wordcloud-iframe-wrapper"
+            />
             <p class="essay-count">基于 {{ essayAnswers?.length || 0 }} 份答案</p>
           </div>
           
@@ -238,6 +223,7 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { generateWordCloud, calculateWordPositions, getWordStyle } from '../utils/wordcloud'
 import websocket, { WS_EVENTS } from '../utils/websocket'
+import WordCloudIframe from './WordCloudIframe.vue'
 
 const props = defineProps({
   visible: {
@@ -307,17 +293,29 @@ const getPercentage = (optionContent) => {
   return stat ? Math.round(stat.percentage) : 0
 }
 
-// 获取词云样式
-const getWordStyleForDisplay = (word, index) => {
-  // 使用更大的容器尺寸适应放映页
-  return getWordStyle(word, index, wordFrequency.value, wordPositions.value, 1000, 600)
-}
+// 将wordFrequency转换为WordCloudIframe需要的keywords格式
+const wordCloudKeywords = computed(() => {
+  if (!wordFrequency.value || wordFrequency.value.length === 0) {
+    return {}
+  }
+  const keywords = {}
+  wordFrequency.value.forEach(word => {
+    keywords[word.word] = word.count
+  })
+  return keywords
+})
 
-// 获取子问题的词云样式
-const getWordStyleForSubQuestion = (word, index, subIndex) => {
+// 获取子问题的词云keywords
+const getSubQuestionWordCloudKeywords = (subIndex) => {
   const freq = subQuestionWordFrequency.value[subIndex] || []
-  const pos = subQuestionWordPositions.value[subIndex] || []
-  return getWordStyle(word, index, freq, pos, 1000, 400)
+  if (freq.length === 0) {
+    return {}
+  }
+  const keywords = {}
+  freq.forEach(word => {
+    keywords[word.word] = word.count
+  })
+  return keywords
 }
 
 // 获取子问题的统计计数
@@ -1001,6 +999,15 @@ onUnmounted(() => {
   height: 500px;
   margin: 0 auto 24px;
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.wordcloud-iframe-wrapper {
+  width: 100%;
+  height: 500px;
+  margin: 0 auto 24px;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);

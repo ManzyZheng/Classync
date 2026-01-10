@@ -107,7 +107,6 @@ onMounted(() => {
 .wordcloud-iframe-container {
   width: 100%;
   height: 100%;
-  min-height: 400px;
   position: relative;
   background: white;
   border-radius: 8px;
@@ -118,14 +117,10 @@ onMounted(() => {
 }
 
 .wordcloud-iframe {
-  width: 200%;
-  height: 200%;
-  min-height: 600px;
+  width: 100%;
+  height: 100%;
   border: none;
   display: block;
-  /* 使用transform放大，使字体更大 */
-  transform: scale(3);
-  transform-origin: center center;
 }
 
 .loading {

@@ -47,7 +47,7 @@
         <button class="back-btn" @click="selectedQuestion = null">← 返回</button>
         
         <div class="detail-header">
-          <h3>{{ getQuestionTypeName(selectedQuestion.type) }}控制</h3>
+          <h3>{{ getQuestionTypeName(selectedQuestion.type) }}</h3>
           <div class="status-control">
             <span>{{ selectedQuestion.isFinished ? '已结束' : '统计进行中' }}</span>
             <div class="timer-display">
@@ -195,42 +195,14 @@
                     <span>显示词云</span>
                   </label>
                 </div>
-                <div v-if="showWordCloud" class="wordcloud-toggle">
-                  <label class="toggle-label-small">
-                    <input 
-                      type="checkbox" 
-                      v-model="useExternalWordCloud"
-                    />
-                    <span>使用外部API词云</span>
-                  </label>
-                </div>
               </div>
             </div>
             <div v-if="showWordCloud" class="wordcloud-container">
-              <!-- 外部API词云 -->
               <WordCloudIframe
-                v-if="useExternalWordCloud"
                 :keywords="wordCloudKeywords"
                 bg-color="white"
                 class="external-wordcloud"
               />
-              <!-- 原有词云 -->
-              <template v-else>
-                <div v-if="wordFrequency.length > 0" class="word-tags">
-                  <span 
-                    v-for="(word, index) in wordFrequency" 
-                    :key="index"
-                    class="word-tag"
-                    :class="getWordClass(word.count, word.normalizedFrequency)"
-                    :style="{ ...getWordStyle(word, index), color: getWordColor(word.count, index, word.normalizedFrequency) }"
-                  >
-                    {{ word.word }}
-                  </span>
-                </div>
-                <div v-else class="no-wordcloud">
-                  暂无数据
-                </div>
-              </template>
             </div>
           </div>
           
@@ -800,7 +772,6 @@ const essayAnswer = ref('')
 const wordcloudCanvas = ref(null)
 const essayWordcloudCanvas = ref(null)
 const showWordCloud = ref(false) // 默认不显示词云
-const useExternalWordCloud = ref(true) // 默认使用外部API词云
 const viewingSubQuestion = ref(null) // 当前查看的测验子问题
 // 测验相关状态
 const selectedQuizAnswers = ref({}) // { questionIndex: selectedOption } 或 { questionIndex: [selectedOptions] }
@@ -3223,23 +3194,22 @@ const wordCloudKeywords = computed(() => {
 .external-wordcloud {
   width: 100%;
   height: 100%;
-  min-height: 400px;
 }
 
 .wordcloud-container {
-  /* 去掉固定宽高，改为相对单位 */
   width: 100%;
-  min-height: 400px;
-  padding: 30px; /* 减小内边距 */
+  max-width: 600px;
+  aspect-ratio: 1;
+  padding: 10px;
   background: white;
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   position: relative;
   overflow: hidden;
-  /* 添加flex布局使内容居中 */
   display: flex;
   justify-content: center;
   align-items: center;
+  margin: 0 auto;
 }
 
 .wordcloud-container::before {
@@ -3347,6 +3317,7 @@ const wordCloudKeywords = computed(() => {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 8px;
 }
 
 .essay-answers-list {
@@ -3433,9 +3404,9 @@ const wordCloudKeywords = computed(() => {
 .display-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 20px;
-  margin-bottom: 16px;
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 12px;
 }
 
 .display-label {
@@ -3759,7 +3730,8 @@ const wordCloudKeywords = computed(() => {
 }
 
 .essay-wordcloud {
-  margin-top: 16px;
+  margin-top: 8px;
+  margin-bottom: 8px;
 }
 
 .my-essay-record {
