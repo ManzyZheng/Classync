@@ -30,4 +30,5 @@ backend/data/
 *.mv.db
 *.trace.db
 
+# pdf upload
 uploads/
