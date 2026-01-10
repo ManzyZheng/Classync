@@ -77,7 +77,22 @@ class WebSocketService {
 
     console.log(`[WebSocket] Event: ${event}`, payload)
 
-    // 细粒度事件分发
+    // 首先触发注册的事件处理器（on() 方式）
+    const handlers = this.eventHandlers.get(event)
+    if (handlers && handlers.length > 0) {
+      console.log(`[WebSocket] Found ${handlers.length} registered handlers for ${event}`)
+      handlers.forEach(handler => {
+        try {
+          handler(payload)
+        } catch (err) {
+          console.error(`[WebSocket] Error in handler for ${event}:`, err)
+        }
+      })
+    } else {
+      console.log(`[WebSocket] No handlers registered for ${event}`)
+    }
+
+    // 然后处理回调方式（connect 传入的 callbacks）
     switch (event) {
       case WS_EVENTS.CLASSROOM_STATE:
         callbacks.onClassroomState?.(payload)
@@ -117,12 +132,6 @@ class WebSocketService {
         break
       default:
         console.warn(`Unknown event type: ${event}`)
-    }
-
-    // 触发注册的事件处理器
-    const handlers = this.eventHandlers.get(event)
-    if (handlers) {
-      handlers.forEach(handler => handler(payload))
     }
   }
 

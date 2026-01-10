@@ -680,7 +680,7 @@ onUnmounted(() => {
   background: #ffffff;
   z-index: 9999;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 15px;
   overflow-y: auto;
@@ -694,8 +694,8 @@ onUnmounted(() => {
   padding: 25px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   animation: slideUp 0.4s ease-out;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 @keyframes slideUp {

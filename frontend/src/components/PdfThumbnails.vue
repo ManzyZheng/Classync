@@ -92,6 +92,8 @@ const handlePageClick = (page) => {
 let pdfDoc = null
 let canvasRefs = {}
 let isLoading = false
+let renderQueue = Promise.resolve()  // 用于顺序化渲染操作
+let activeRenderTasks = new Map()  // 跟踪每个页码的活跃任务
 
 onMounted(() => {
   if (props.pdfUrl) {
@@ -105,6 +107,8 @@ onUnmounted(() => {
     pdfDoc = null
   }
   canvasRefs = {}
+  activeRenderTasks.clear()
+  renderQueue = Promise.resolve()
 })
 
 watch(() => props.pdfUrl, (newUrl) => {
@@ -126,11 +130,9 @@ function setCanvasRef(el, pageNum) {
   if (el) {
     canvasRefs[pageNum] = el
     
-    // 如果 PDF 已加载，立即渲染这个缩略图
+    // 如果 PDF 已加载，加入渲染队列
     if (pdfDoc && !isLoading) {
-      nextTick(() => {
-        renderThumbnail(pageNum)
-      })
+      queueRenderThumbnail(pageNum)
     }
   }
 }
@@ -151,6 +153,16 @@ async function loadThumbnails() {
     // 等待 DOM 更新后再渲染
     await nextTick()
     
+    // 确保所有 canvas ref 都已设置
+    const totalPages = props.totalPages || pdfDoc.numPages || 0
+    let retries = 0
+    while (Object.keys(canvasRefs).length < totalPages && retries < 10) {
+      await new Promise(resolve => setTimeout(resolve, 50))
+      retries++
+    }
+    
+    console.log(`Canvas refs ready: ${Object.keys(canvasRefs).length}/${totalPages}`)
+    
     // 渲染所有缩略图
     await renderAllThumbnails()
     
@@ -165,8 +177,27 @@ async function renderAllThumbnails() {
   const totalPages = props.totalPages || pdfDoc?.numPages || 0
   
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-    await renderThumbnail(pageNum)
+    await queueRenderThumbnail(pageNum)
   }
+}
+
+function queueRenderThumbnail(pageNum) {
+  // 如果已有此页码的任务在运行，则跳过
+  if (activeRenderTasks.has(pageNum)) {
+    return activeRenderTasks.get(pageNum)
+  }
+  
+  // 添加到队列中，确保顺序执行
+  const task = renderQueue.then(() => renderThumbnail(pageNum))
+  activeRenderTasks.set(pageNum, task)
+  renderQueue = task
+  
+  // 任务完成后清理
+  task.finally(() => {
+    activeRenderTasks.delete(pageNum)
+  })
+  
+  return task
 }
 
 async function renderThumbnail(pageNum) {

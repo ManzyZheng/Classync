@@ -33,6 +33,12 @@
         </div>
       </div>
     </transition>
+    
+    <!-- 弹幕显示 -->
+    <DanmakuDisplay 
+      :classroom-id="classroomId || 0"
+      :enabled="true"
+    />
   </div>
 </template>
 
@@ -43,12 +49,13 @@ import api from '../api'
 import websocket from '../utils/websocket'
 import PdfViewer from '../components/PdfViewer.vue'
 import QuestionOverlay from '../components/QuestionOverlay.vue'
+import DanmakuDisplay from '../components/DanmakuDisplay.vue'
 import QRCode from 'qrcode'
 
 const route = useRoute()
 const router = useRouter()
 
-const classroomId = ref(parseInt(route.params.id))
+const classroomId = ref(null) // 初始化为 null，等待从路由参数加载
 const pdfUrl = ref('')
 const currentPage = ref(1)
 const totalPages = ref(0)
@@ -63,8 +70,22 @@ const displayQuestionMode = ref('QUESTION_ONLY')
 const displaySubQuestionIndex = ref(null)
 
 onMounted(async () => {
+  // 先从路由参数获取 classroomId
+  const idFromRoute = parseInt(route.params.id)
+  if (idFromRoute && !isNaN(idFromRoute)) {
+    classroomId.value = idFromRoute
+    console.log('[Display] Classroom ID from route:', classroomId.value)
+  }
+  
+  console.log('[Display] onMounted - classroomId before loadClassroom:', classroomId.value)
+  
   await loadClassroom()
+  
+  console.log('[Display] onMounted - classroomId after loadClassroom:', classroomId.value)
+  
   await connectWebSocket()
+  
+  console.log('[Display] onMounted - classroomId after connectWebSocket:', classroomId.value)
 })
 
 onUnmounted(() => {
@@ -72,6 +93,21 @@ onUnmounted(() => {
 })
 
 const loadClassroom = async () => {
+  // 如果还没有 classroomId，从路由获取
+  if (!classroomId.value) {
+    const idFromRoute = parseInt(route.params.id)
+    if (idFromRoute && !isNaN(idFromRoute)) {
+      classroomId.value = idFromRoute
+    }
+  }
+  
+  if (!classroomId.value) {
+    console.error('[Display] No classroom ID available')
+    alert('无效的课堂ID')
+    router.push('/home')
+    return
+  }
+  
   try {
     const data = await api.classroom.getById(classroomId.value)
     console.log('[Display] Classroom data loaded:', data)
@@ -103,6 +139,11 @@ const loadClassroom = async () => {
 }
 
 const connectWebSocket = async () => {
+  if (!classroomId.value) {
+    console.error('[Display] Cannot connect WebSocket: no classroom ID')
+    return
+  }
+  
   try {
     await websocket.connect(classroomId.value, {
       // ✅ 订阅 CLASSROOM_STATE 事件
@@ -160,6 +201,11 @@ const connectWebSocket = async () => {
           displayQuestionMode.value = 'QUESTION_ONLY'
           displaySubQuestionIndex.value = null
         }
+      },
+      // ✅ 订阅 DISCUSSION_NEW 事件（用于弹幕显示）
+      onDiscussionNew: (payload) => {
+        console.log('[Display] Discussion new event received (for danmaku):', payload)
+        // 这个回调会触发弹幕组件的监听器
       }
     })
   } catch (error) {
@@ -232,6 +278,9 @@ watch([classroomCode, showClassroomCode], ([code, show]) => {
   justify-content: center;
   margin: 0;
   padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 .pdf-display {
