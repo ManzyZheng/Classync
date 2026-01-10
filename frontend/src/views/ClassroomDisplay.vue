@@ -301,7 +301,7 @@ watch([classroomCode, showClassroomCode], ([code, show]) => {
   padding: 24px;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  z-index: 1000;
+  z-index: 10000;  /* 高于 QuestionOverlay (9999)，确保始终显示在最上层 */
   pointer-events: none;
   display: flex;
   flex-direction: column;
