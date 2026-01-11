@@ -834,7 +834,29 @@ const copyClassCode = async (event) => {
   if (!selectedClassroomForMenu.value) return
   
   try {
-    await navigator.clipboard.writeText(selectedClassroomForMenu.value.classCode)
+    const code = selectedClassroomForMenu.value.classCode
+    
+    // 首先尝试使用 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(code)
+    } else {
+      // 降级方案：使用传统的 execCommand
+      const textArea = document.createElement('textarea')
+      textArea.value = code
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-999999px'
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      const successful = document.execCommand('copy')
+      document.body.removeChild(textArea)
+      
+      if (!successful) {
+        throw new Error('复制失败')
+      }
+    }
+    
     // 显示提示
     if (event) {
       const button = event.target.closest('.menu-action-btn')
