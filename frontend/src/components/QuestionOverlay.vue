@@ -694,8 +694,10 @@ onUnmounted(() => {
   padding: 25px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   animation: slideUp 0.4s ease-out;
-  max-height: 90vh;
+  max-height: 95vh;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes slideUp {
@@ -875,6 +877,15 @@ onUnmounted(() => {
 
 .subquestion-essay-section {
   margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+}
+
+.subquestion-essay-section .essay-wordcloud {
+  flex: 1;
+  min-height: 500px;
+  padding: 20px 10px;
 }
 
 .subquestion-actions {
@@ -986,11 +997,19 @@ onUnmounted(() => {
 
 .essay-section {
   width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .essay-wordcloud {
-  padding: 40px 20px;
+  padding: 20px 10px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+  min-height: 70vh;
 }
 
 .wordcloud-container {
@@ -1006,8 +1025,10 @@ onUnmounted(() => {
 
 .wordcloud-iframe-wrapper {
   width: 100%;
-  height: 500px;
-  margin: 0 auto 24px;
+  height: 100%;
+  flex: 1;
+  min-height: 600px;
+  margin: 0 auto 16px;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);

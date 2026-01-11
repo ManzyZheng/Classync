@@ -162,13 +162,13 @@ export default {
       };
       
       // 使用与 lddgo.net 相同的 ECharts 配置格式
-      // 优化参数让词云更大更饱满
+      // 优化参数让词云更大更饱满，充满屏幕
       const option = {
         backgroundColor: '${bgColor}',
         series: [{
           type: 'wordCloud',
-          gridSize: 6,  // 减小网格大小，让词更密集
-          sizeRange: [20, 80],  // 增大字体范围
+          gridSize: 4,  // 进一步减小网格大小，让词更密集
+          sizeRange: [30, 120],  // 大幅增大字体范围，让词更大
           rotationRange: [-90, 90],
           rotationStep: 45,
           shape: 'circle',
