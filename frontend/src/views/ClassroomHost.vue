@@ -6,7 +6,7 @@
       </button>
       <h2 class="classroom-title">{{ classroom?.name }}</h2>
       <div class="header-info">
-        <div class="info-item">
+        <div class="info-item clickable" @click="openDateEditor" title="点击编辑时间">
           <span class="info-icon">📅</span>
           <span>{{ formatTimeRange(classroom?.startTime, classroom?.endTime) }}</span>
         </div>
@@ -81,6 +81,41 @@
         />
       </div>
     </div>
+    
+    <!-- 日期编辑弹窗 -->
+    <div v-if="showDateEditor" class="modal-overlay" @click="closeDateEditor">
+      <div class="modal-content date-editor-modal" @click.stop>
+        <div class="modal-header">
+          <h3>编辑课堂时间</h3>
+          <button class="close-btn" @click="closeDateEditor">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="date-input-group">
+            <label>开始时间</label>
+            <input 
+              type="datetime-local" 
+              v-model="editStartTime"
+              class="date-input"
+            />
+          </div>
+          
+          <div class="date-input-group">
+            <label>结束时间</label>
+            <input 
+              type="datetime-local" 
+              v-model="editEndTime"
+              class="date-input"
+            />
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="closeDateEditor">取消</button>
+          <button class="save-btn" @click="saveClassroomTime">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -106,6 +141,9 @@ const totalPages = ref(0)
 const showClassroomCode = ref(false)  // 展示课堂码开关状态
 const pageLocks = ref({})  // 页面锁定状态 { pageNumber: isLocked }
 const lockFollowingPages = ref(false)  // 锁定后续页面开关状态
+const showDateEditor = ref(false)  // 日期编辑弹窗显示状态
+const editStartTime = ref('')  // 编辑中的开始时间
+const editEndTime = ref('')  // 编辑中的结束时间
 
 onMounted(async () => {
   await loadClassroom()
@@ -338,6 +376,67 @@ const formatTimeRange = (start, end) => {
   
   return `${dateStr} - ${endDateStr}`
 }
+
+// 打开日期编辑器时，初始化编辑值
+const openDateEditor = () => {
+  if (classroom.value) {
+    // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:mm)
+    editStartTime.value = formatDateTimeLocal(classroom.value.startTime)
+    editEndTime.value = formatDateTimeLocal(classroom.value.endTime)
+  }
+  showDateEditor.value = true
+}
+
+// 关闭日期编辑器
+const closeDateEditor = () => {
+  showDateEditor.value = false
+}
+
+// 格式化为 datetime-local 输入框格式
+const formatDateTimeLocal = (dateString) => {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+// 保存课堂时间
+const saveClassroomTime = async () => {
+  if (!editStartTime.value || !editEndTime.value) {
+    alert('请选择开始和结束时间')
+    return
+  }
+  
+  const startDate = new Date(editStartTime.value)
+  const endDate = new Date(editEndTime.value)
+  
+  if (startDate >= endDate) {
+    alert('结束时间必须晚于开始时间')
+    return
+  }
+  
+  try {
+    // 调用 API 更新课堂时间
+    await api.classroom.updateTime(classroomId.value, {
+      startTime: startDate.toISOString(),
+      endTime: endDate.toISOString()
+    })
+    
+    // 更新本地数据
+    classroom.value.startTime = startDate.toISOString()
+    classroom.value.endTime = endDate.toISOString()
+    
+    closeDateEditor()
+    console.log('Classroom time updated successfully')
+  } catch (error) {
+    console.error('Failed to update classroom time:', error)
+    alert('保存失败，请重试')
+  }
+}
 </script>
 
 <style scoped>
@@ -411,6 +510,17 @@ const formatTimeRange = (start, end) => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.info-item.clickable {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.info-item.clickable:hover {
+  background: #f5f5f5;
 }
 
 .info-icon {
@@ -596,6 +706,158 @@ input:checked + .slider:before {
 .no-pdf p {
   color: #999;
   font-size: 16px;
+}
+
+/* 日期编辑弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.date-editor-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 450px;
+  max-width: 90vw;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: #666;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.date-input-group {
+  margin-bottom: 20px;
+}
+
+.date-input-group:last-child {
+  margin-bottom: 0;
+}
+
+.date-input-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.date-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.cancel-btn,
+.save-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.cancel-btn {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.cancel-btn:hover {
+  background: #e0e0e0;
+}
+
+.save-btn {
+  background: #667eea;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #5568d3;
 }
 
 /* 响应式设计 */

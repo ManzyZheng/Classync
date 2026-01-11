@@ -82,6 +82,21 @@ onUnmounted(() => {
 
 const loadClassroom = async () => {
   try {
+    // 先检查课堂状态
+    const statusData = await api.classroom.getStatus(classroomId.value)
+    console.log('[ClassroomViewer] Classroom status:', statusData.status)
+    
+    if (statusData.status === 'NOT_STARTED') {
+      alert('课堂尚未开始，请稍后再来')
+      router.push('/home')
+      return
+    } else if (statusData.status === 'ENDED') {
+      alert('课堂已结束')
+      router.push('/home')
+      return
+    }
+    
+    // 状态正常，加载课堂数据
     const data = await api.classroom.getById(classroomId.value)
     classroom.value = data
     classroomStore.setClassroom(data)
